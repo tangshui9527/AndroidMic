@@ -132,6 +132,7 @@ pub struct AppState {
     pub connection_state: ConnectionState,
     pub network_adapters: Vec<NetworkAdapter>,
     pub network_adapter: Option<NetworkAdapter>,
+    pub remote_ip: Option<IpAddr>,
     pub port_input: String,
     pub main_window: Option<CustomWindow>,
     pub settings_window: Option<CustomWindow>,
@@ -257,6 +258,7 @@ impl AppState {
     fn disconnect(&mut self) -> Task<AppMsg> {
         self.send_command(StreamerCommand::Stop);
         self.connection_state = ConnectionState::Default;
+        self.remote_ip = None;
         self.audio_stream = None;
         self.audio_wave.clear();
 
@@ -398,6 +400,7 @@ impl Application for AppState {
             connection_state: ConnectionState::Default,
             network_adapters,
             network_adapter,
+            remote_ip: None,
             port_input: config.port.to_string(),
             main_window: None,
             settings_window: None,
@@ -481,11 +484,13 @@ impl Application for AppState {
             AppMsg::Streamer(streamer_msg) => match streamer_msg {
                 StreamerMsg::Error(e) => {
                     self.connection_state = ConnectionState::Default;
+                    self.remote_ip = None;
                     self.audio_stream = None;
                     self.audio_wave.clear();
                     return self.add_log(&e);
                 }
                 StreamerMsg::Listening { ip, port } => {
+                    self.remote_ip = None;
                     if let Some(audio_stream) = &self.audio_stream {
                         if let Err(e) = audio_stream.stream.pause() {
                             error!("{e}");
@@ -505,6 +510,7 @@ impl Application for AppState {
                     }
                 }
                 StreamerMsg::Connected { ip, port, mode: _ } => {
+                    self.remote_ip = ip;
                     if let Some(audio_stream) = &self.audio_stream {
                         if let Err(e) = audio_stream.stream.play() {
                             error!("{e}");

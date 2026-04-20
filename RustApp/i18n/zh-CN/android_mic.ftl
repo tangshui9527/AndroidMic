@@ -3,11 +3,11 @@ settings = 设置
 network_adapter = 网络适配器
 port = 端口
 save = 保存
-connection = 建立连接
-connection_tcp = WIFI / 局域网 (TCP)
-connection_udp = WIFI / 局域网 (UDP)
-connection_usb = USB 串口
-connection_adb = USB Adb
+connection = 连接模式
+connection_tcp = Wi-Fi / 局域网 (TCP)
+connection_udp = Wi-Fi / 局域网 (UDP)
+connection_usb = USB 直接连接 (AOA)
+connection_adb = USB 隧道 (ADB)
 none = 无
 
 tray_show_window = 显示窗口

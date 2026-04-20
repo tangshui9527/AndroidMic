@@ -3,11 +3,11 @@ settings = Settings
 network_adapter = Network adapter
 port = Port
 save = Save
-connection = Connection
-connection_tcp = WIFI / LAN (TCP)
-connection_udp = WIFI / LAN (UDP)
-connection_usb = USB Serial
-connection_adb = USB Adb
+connection = Connection Mode
+connection_tcp = Wi-Fi / LAN (TCP)
+connection_udp = Wi-Fi / LAN (UDP)
+connection_usb = USB (AOA / Direct)
+connection_adb = USB (ADB Tunnel)
 none = None
 
 tray_show_window = Show Window

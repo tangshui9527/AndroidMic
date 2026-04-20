@@ -25,6 +25,7 @@ pub struct UdpStreamer {
     stream_config: AudioStream,
     framed: UdpFramed<LengthDelimitedCodec>,
     is_listening: bool,
+    remote_addr: Option<std::net::SocketAddr>,
     tracked_sequence: u32,
 }
 
@@ -45,6 +46,7 @@ pub async fn new(
         stream_config,
         tracked_sequence: 0,
         is_listening: true,
+        remote_addr: None,
         framed: UdpFramed::new(socket, LengthDelimitedCodec::new()),
     };
 
@@ -64,8 +66,8 @@ impl StreamerTrait for UdpStreamer {
             }
         } else {
             StreamerMsg::Connected {
-                ip: Some(self.ip),
-                port: Some(self.port),
+                ip: self.remote_addr.map(|addr| addr.ip()),
+                port: self.remote_addr.map(|addr| addr.port()),
                 mode: ConnectionMode::Udp,
             }
         }
@@ -134,9 +136,10 @@ impl StreamerTrait for UdpStreamer {
 
                                     if self.is_listening {
                                         self.is_listening = false;
+                                        self.remote_addr = Some(addr);
                                         Ok(Some(StreamerMsg::Connected {
-                                            ip: Some(self.ip),
-                                            port: Some(self.port),
+                                            ip: Some(addr.ip()),
+                                            port: Some(addr.port()),
                                             mode: ConnectionMode::Udp,
                                         }))
                                     } else {

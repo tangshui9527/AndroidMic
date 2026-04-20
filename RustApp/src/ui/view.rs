@@ -56,9 +56,32 @@ pub fn main_window(app: &AppState) -> Element<'_, AppMsg> {
                         .then(|| network_adapter(app)),
                 )
                 .push(audio(app))
+                .push(status_panel(app))
                 .push(vertical_space())
                 .push(connection_type(app)),
         )
+        .into()
+}
+
+fn status_panel(app: &AppState) -> Element<'_, AppMsg> {
+    let status_text = match app.connection_state {
+        ConnectionState::Default => fl!("state_disconnected"),
+        ConnectionState::Listening => fl!("state_listening"),
+        ConnectionState::Connected => {
+            if let Some(ip) = app.remote_ip {
+                format!("{}: {}", fl!("state_connected"), ip)
+            } else {
+                fl!("state_connected")
+            }
+        }
+        ConnectionState::WaitingOnStatus => fl!("waiting"),
+    };
+
+    column()
+        .spacing(10)
+        .align_x(Horizontal::Center)
+        .push(text::title4("Status"))
+        .push(container(text(status_text)).padding(10).class(cosmic::theme::Container::Card))
         .into()
 }
 

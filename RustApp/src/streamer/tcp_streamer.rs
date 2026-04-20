@@ -33,6 +33,7 @@ pub enum TcpStreamerState {
     },
     Streaming {
         framed: Framed<TcpStream, LengthDelimitedCodec>,
+        remote_addr: std::net::SocketAddr,
         disconnect_loop_detecter: u32,
     },
 }
@@ -69,9 +70,9 @@ impl StreamerTrait for TcpStreamer {
                 ip: Some(self.ip),
                 port: Some(self.port),
             },
-            TcpStreamerState::Streaming { .. } => StreamerMsg::Connected {
-                ip: Some(self.ip),
-                port: Some(self.port),
+            TcpStreamerState::Streaming { remote_addr, .. } => StreamerMsg::Connected {
+                ip: Some(remote_addr.ip()),
+                port: Some(remote_addr.port()),
                 mode: ConnectionMode::Tcp,
             },
         }
@@ -117,17 +118,19 @@ impl StreamerTrait for TcpStreamer {
 
                 self.state = TcpStreamerState::Streaming {
                     framed: Framed::new(stream, LengthDelimitedCodec::new()),
+                    remote_addr: addr,
                     disconnect_loop_detecter: 0,
                 };
 
                 Ok(Some(StreamerMsg::Connected {
-                    ip: Some(self.ip),
-                    port: Some(self.port),
+                    ip: Some(addr.ip()),
+                    port: Some(addr.port()),
                     mode: ConnectionMode::Tcp,
                 }))
             }
             TcpStreamerState::Streaming {
                 framed,
+                remote_addr: _,
                 disconnect_loop_detecter: _,
             } => {
                 match framed.next().await {
