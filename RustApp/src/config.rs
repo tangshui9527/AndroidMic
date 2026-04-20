@@ -220,6 +220,9 @@ pub struct Args {
 
     #[arg(long, hide = true, default_value_t = false)]
     pub launched_automatically: bool,
+
+    #[arg(long, help = "start listening immediately", default_value_t = false)]
+    pub listen: bool,
 }
 
 #[derive(

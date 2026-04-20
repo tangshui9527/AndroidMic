@@ -155,6 +155,7 @@ fn main() {
         config_path: config_file_path.to_string_lossy().to_string(),
         log_path: log_file_path.to_string_lossy().to_string(),
         launched_automatically: args.launched_automatically,
+        listen: args.listen,
     };
 
     run_ui(flags)

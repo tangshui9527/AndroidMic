@@ -5,6 +5,7 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
@@ -47,7 +48,31 @@
 
         <service
             android:name="io.github.teamclouday.androidMic.domain.service.ForegroundService"
-            android:foregroundServiceType="microphone" />
+            android:foregroundServiceType="microphone"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="io.github.teamclouday.androidMic.START_SERVICE" />
+            </intent-filter>
+        </service>
+
+        <receiver
+            android:name="io.github.teamclouday.androidMic.BootReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name="io.github.teamclouday.androidMic.AdbReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="io.github.teamclouday.androidMic.CONNECT" />
+            </intent-filter>
+        </receiver>
 
     </application>
 

@@ -88,8 +88,11 @@ impl StreamerTrait for TcpStreamer {
                 let (mut stream, addr) =
                     listener.accept().await.map_err(ConnectError::CantAccept)?;
 
+                info!("Accepted TCP connection from {}", addr);
+
                 let mut buf1 = [0u8; CHECK_1.len()];
 
+                info!("Waiting for handshake CHECK_1 from {}...", addr);
                 stream
                     .read_exact(&mut buf1)
                     .await
@@ -97,19 +100,20 @@ impl StreamerTrait for TcpStreamer {
 
                 if buf1 != CHECK_1.as_bytes() {
                     let s = String::from_utf8_lossy(&buf1);
-
+                    error!("Handshake failed: expected {}, got {}", CHECK_1, s);
                     return Err(ConnectError::HandShakeFailed2(format!(
                         "{} != {}",
                         CHECK_1, s
                     )));
                 }
 
+                info!("Handshake CHECK_1 received, sending CHECK_2 to {}...", addr);
                 stream
                     .write_all(CHECK_2.as_bytes())
                     .await
                     .map_err(|e| ConnectError::HandShakeFailed("writing", e))?;
 
-                info!("connection accepted, remote address: {}", addr);
+                info!("Connection accepted and handshake completed, remote address: {}", addr);
 
                 self.state = TcpStreamerState::Streaming {
                     framed: Framed::new(stream, LengthDelimitedCodec::new()),

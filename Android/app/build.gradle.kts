@@ -16,8 +16,8 @@ android {
         applicationId = "io.github.teamclouday.AndroidMic"
         minSdk = 23
         targetSdk = 36
-        versionCode = 22
-        versionName = "2.2.6"
+        versionCode = 24
+        versionName = "2.2.8"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         vectorDrawables.useSupportLibrary = true
@@ -68,14 +68,14 @@ android {
     }
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_21
-        targetCompatibility = JavaVersion.VERSION_21
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
 
     kotlin {
         compilerOptions {
             // set the target JVM bytecode
-            jvmTarget.set(JvmTarget.JVM_21)
+            jvmTarget.set(JvmTarget.JVM_17)
         }
     }
     buildFeatures {

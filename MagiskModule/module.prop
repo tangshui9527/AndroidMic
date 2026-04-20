@@ -1,0 +1,6 @@
+id=mimic_auto_start
+name=MiMic Auto Start
+version=1.0
+versionCode=1
+author=MiMic
+description=Android mic to PC, auto start on boot

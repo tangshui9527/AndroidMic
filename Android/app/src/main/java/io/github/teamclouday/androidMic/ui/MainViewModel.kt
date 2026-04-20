@@ -1,7 +1,12 @@
 package io.github.teamclouday.androidMic.ui
 
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import android.content.ServiceConnection
 import android.os.Handler
 import android.os.HandlerThread
+import android.os.IBinder
 import android.os.Looper
 import android.os.Message
 import android.os.Messenger
@@ -25,6 +30,7 @@ import io.github.teamclouday.androidMic.domain.service.ResponseData
 import io.github.teamclouday.androidMic.domain.service.ResponseKind
 import io.github.teamclouday.androidMic.ui.utils.UiHelper
 import io.github.teamclouday.androidMic.utils.Either
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 
@@ -96,6 +102,23 @@ class MainViewModel : ViewModel() {
         val msg = CommandData(Command.BindCheck).toCommandMsg()
         msg.replyTo = messenger
         service?.send(msg)
+    }
+    
+    fun autoConnectIfNeeded() {
+        Log.d(TAG, "autoConnectIfNeeded")
+        if (isStreamStarted.value) return
+        
+        viewModelScope.launch {
+            val mode = prefs.mode.get()
+            val ip = prefs.ip.get()
+            val portStr = prefs.port.get()
+            val port = portStr.toIntOrNull()
+            
+            if (port != null && ip.isNotEmpty()) {
+                Log.d(TAG, "Triggering auto-connect to $ip:$port")
+                onConnectButton()
+            }
+        }
     }
 
     fun onMuteSwitch() {

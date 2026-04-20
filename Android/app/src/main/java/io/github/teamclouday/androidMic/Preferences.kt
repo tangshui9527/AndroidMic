@@ -9,7 +9,7 @@ import io.github.teamclouday.androidMic.ui.utils.UiHelper
 import io.github.teamclouday.androidMic.utils.PreferencesManager
 
 object DefaultStates {
-    const val IP = "192.168."
+    const val IP = "192.168.31.88"
     const val PORT = "54345"
 }
 
@@ -23,8 +23,8 @@ class AppPreferences(
 ) : PreferencesManager(context, "settings") {
     val mode = enumPreference("mode", Mode.WIFI)
 
-    val ip = stringPreference("ip", "192.168.")
-    val port = stringPreference("port", "")
+    val ip = stringPreference("ip", "192.168.31.88")
+    val port = stringPreference("port", "54345")
 
 
     val theme = enumPreference("theme", Themes.System)
@@ -32,7 +32,7 @@ class AppPreferences(
 
     val sampleRate = enumPreference("sampleRate", SampleRates.S44100)
     val channelCount = enumPreference("channelCount", ChannelCount.Mono)
-    val audioFormat = enumPreference("audioFormat", AudioFormat.I16)
+    val audioFormat = enumPreference("audioFormat", AudioFormat.F32)
 
 }
 

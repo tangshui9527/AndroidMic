@@ -22,11 +22,15 @@ class AndroidMicApp : Application() {
         lateinit var appModule: AppModule
         var service: Messenger? = null
         var isBound = false
+        var instance: AndroidMicApp? = null
+        
+        fun getApplication(): AndroidMicApp = instance!!
     }
 
     private val scope = MainScope()
     override fun onCreate() {
         super.onCreate()
+        instance = this
 
         appModule = AppModuleImpl(this)
 

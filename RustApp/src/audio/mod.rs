@@ -299,7 +299,7 @@ impl AudioBytes for u32 {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Default)]
 pub struct AudioPacketFormat {
     sample_rate: SampleRate,
     audio_format: AudioFormat,

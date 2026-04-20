@@ -15,9 +15,12 @@ import android.os.Process
 import android.util.Log
 import io.github.teamclouday.androidMic.Mode
 import io.github.teamclouday.androidMic.R
+import io.github.teamclouday.androidMic.AppPreferences
 import io.github.teamclouday.androidMic.domain.audio.MicAudioManager
 import io.github.teamclouday.androidMic.domain.streaming.MicStreamManager
 import io.github.teamclouday.androidMic.utils.ignore
+import io.github.teamclouday.androidMic.AppModule
+import io.github.teamclouday.androidMic.AndroidMicApp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -37,6 +40,7 @@ const val WAIT_PERIOD = 500L
 
 const val BIND_SERVICE_ACTION = "BIND_SERVICE_ACTION"
 const val STOP_STREAM_ACTION = "STOP_STREAM_ACTION"
+const val AUTO_CONNECT_ACTION = "io.github.teamclouday.androidMic.AUTO_CONNECT"
 
 class ForegroundService : Service() {
     private val scope = CoroutineScope(Dispatchers.Default)
@@ -110,6 +114,88 @@ class ForegroundService : Service() {
             notificationManager.createNotificationChannel(channel)
         }
         messageui = MessageUi(this)
+        
+        scope.launch {
+            delay(5000L)
+            autoConnect()
+        }
+    }
+    
+    private suspend fun autoConnect() {
+        Log.d(TAG, "Starting autoConnect...")
+        
+        val prefs = AndroidMicApp.appModule.appPreferences
+        var retryCount = 0
+        while (true) {
+            try {
+                prefs.preload()
+                
+                val mode = prefs.mode.get()
+                val ip = prefs.ip.get()
+                val portStr = prefs.port.get()
+                
+                Log.d(TAG, "Config: mode=$mode, ip=$ip, port=$portStr")
+                
+                val port = try { portStr.toInt() } catch (e: Exception) { null }
+                
+                if (mode == null || ip.isNullOrEmpty() || port == null || portStr.isNullOrEmpty()) {
+                    Log.d(TAG, "Invalid config (mode=$mode, ip=$ip, portStr=$portStr), retry in 10s...")
+                    delay(10000)
+                    continue
+                }
+                
+                val commandData = CommandData(
+                    command = Command.StartStream,
+                    mode = mode,
+                    ip = ip,
+                    port = port,
+                    sampleRate = prefs.sampleRate.get(),
+                    channelCount = prefs.channelCount.get(),
+                    audioFormat = prefs.audioFormat.get(),
+                )
+                
+                Log.d(TAG, "Auto connecting to ${commandData.ip}:${commandData.port}, mode=${commandData.mode}, attempt ${++retryCount}")
+                
+                val connectSuccess = tryConnect(commandData)
+                if (connectSuccess) {
+                    Log.d(TAG, "Auto connect SUCCESS!")
+                    return // 连接成功，退出循环
+                } else {
+                    Log.d(TAG, "Auto connect failed, retry in 10s...")
+                }
+            } catch (e: Exception) {
+                Log.d(TAG, "Auto connect error: ${e.message}")
+            }
+            delay(10000)
+        }
+    }
+    
+    private suspend fun tryConnect(cmd: CommandData): Boolean {
+        return try {
+            if (states.isStreamStarted) return true
+            
+            managerStream = MicStreamManager(applicationContext, scope, cmd.mode!!, cmd.ip, cmd.port)
+            if (managerStream?.connect() != true || managerStream?.isConnected() != true) {
+                managerStream?.shutdown()
+                managerStream = null
+                return false
+            }
+            
+            if (!startAudio(cmd, null)) {
+                managerStream?.shutdown()
+                managerStream = null
+                return false
+            }
+            
+            managerStream?.start(managerAudio!!.audioStream(), serviceMessenger)
+            states.isStreamStarted = true
+            true
+        } catch (e: Exception) {
+            Log.d(TAG, "tryConnect exception: ${e.message}")
+            managerStream?.shutdown()
+            managerStream = null
+            false
+        }
     }
 
     // note that onBind is only called on the first call of bind()
@@ -134,6 +220,20 @@ class ForegroundService : Service() {
             BIND_SERVICE_ACTION -> {
                 isBind = true
                 serviceShouldStop = false
+            }
+
+            AUTO_CONNECT_ACTION -> {
+                Log.d(TAG, "AUTO_CONNECT_ACTION received")
+                isBind = true
+                serviceShouldStop = false
+                try {
+                    startForeground(3, messageui.getNotification())
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to start foreground: ${e.message}")
+                }
+                scope.launch {
+                    autoConnect()
+                }
             }
 
             else -> {
@@ -191,7 +291,7 @@ class ForegroundService : Service() {
     }
 
     // start streaming
-    private fun startStream(msg: CommandData, replyTo: Messenger) {
+    private fun startStream(msg: CommandData, replyTo: Messenger?) {
         states.isMuted = false
         // check connection state
         if (states.isStreamStarted) {
@@ -229,6 +329,7 @@ class ForegroundService : Service() {
 
         if (managerStream?.connect() != true || managerStream?.isConnected() != true
         ) {
+            Log.d(TAG, "failed to connect to ${msg.ip}:${msg.port}")
 
             reply(
                 replyTo,
@@ -238,7 +339,7 @@ class ForegroundService : Service() {
                     isMuted = states.isMuted,
                 )
             )
-            shutdownStream()
+            // Don't shutdown, keep trying in background
             return
         }
 
@@ -298,7 +399,7 @@ class ForegroundService : Service() {
 
 
     // start mic
-    private fun startAudio(msg: CommandData, replyTo: Messenger): Boolean {
+    private fun startAudio(msg: CommandData, replyTo: Messenger?): Boolean {
         // check audio state
         if (states.isAudioStarted) {
             reply(replyTo, ResponseData(msg = this.getString(R.string.microphone_already_started)))

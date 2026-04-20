@@ -144,6 +144,7 @@ pub struct AppState {
     pub system_tray_stream: Option<SystemTrayStream>,
     has_shown_minimize_notification: bool,
     launched_automatically: bool,
+    pending_connect: bool,
 }
 
 pub struct CustomWindow {
@@ -201,10 +202,11 @@ impl AppState {
         let (producer, consumer) = RingBuffer::<u8>::new(self.get_shared_buf_size());
 
         let audio_config = match self.create_audio_stream(consumer, false) {
-            Ok(audio_config) => audio_config,
+            Ok(audio_config) => Some(audio_config),
             Err(e) => {
                 error!("failed to start audio stream: {e}");
-                return self.add_log(&e.to_string());
+                let _ = self.add_log(&format!("Warning: Audio device failed, connection only mode. ({})", e));
+                None
             }
         };
 
@@ -213,7 +215,7 @@ impl AppState {
                 let Some(ip) = config.ip_or_default() else {
                     let e = "no address ip found";
 
-                    error!("failed to start audio stream: {e}");
+                    error!("failed to start streamer: {e}");
                     return self.add_log(e);
                 };
 
@@ -226,7 +228,7 @@ impl AppState {
                 let Some(ip) = config.ip_or_default() else {
                     let e = "no address ip found";
 
-                    error!("failed to start audio stream: {e}");
+                    error!("failed to start streamer: {e}");
                     return self.add_log(e);
                 };
                 ConnectOption::Udp {
@@ -245,7 +247,7 @@ impl AppState {
         self.send_command(StreamerCommand::Connect {
             connect_options,
             buff: producer,
-            audio_params: AudioProcessParams::new(audio_config, config),
+            audio_params: AudioProcessParams::new(audio_config.unwrap_or_default(), config),
             is_window_visible: self.main_window.is_some(),
         });
 
@@ -292,6 +294,7 @@ pub struct Flags {
     pub config_path: String,
     pub log_path: String,
     pub launched_automatically: bool,
+    pub listen: bool,
 }
 
 // used because the markdown parsing only detect https links
@@ -407,6 +410,7 @@ impl Application for AppState {
             system_tray_stream,
             has_shown_minimize_notification: false,
             launched_automatically: flags.launched_automatically,
+            pending_connect: flags.listen,
         };
 
         commands
@@ -482,8 +486,10 @@ impl Application for AppState {
                     return self.add_log(&e);
                 }
                 StreamerMsg::Listening { ip, port } => {
-                    if let Err(e) = self.audio_stream.as_ref().unwrap().stream.pause() {
-                        error!("{e}");
+                    if let Some(audio_stream) = &self.audio_stream {
+                        if let Err(e) = audio_stream.stream.pause() {
+                            error!("{e}");
+                        }
                     }
                     self.audio_wave.clear();
 
@@ -499,8 +505,12 @@ impl Application for AppState {
                     }
                 }
                 StreamerMsg::Connected { ip, port, mode: _ } => {
-                    if let Err(e) = self.audio_stream.as_ref().unwrap().stream.play() {
-                        error!("{e}");
+                    if let Some(audio_stream) = &self.audio_stream {
+                        if let Err(e) = audio_stream.stream.play() {
+                            error!("{e}");
+                        }
+                    } else {
+                        warn!("connection established but audio stream is not initialized");
                     }
 
                     #[cfg(not(target_os = "linux"))]
@@ -537,7 +547,23 @@ impl Application for AppState {
                 }
                 StreamerMsg::Ready(sender) => {
                     self.streamer = Some(sender);
-                    if config.auto_connect {
+                    
+                    // If audio device is not set or failed, try to pick recommended format
+                    if self.audio_stream.is_none() {
+                        let _ = self.add_log("Attempting to use recommended audio format...");
+                        if let Some(device) = &self.audio_device {
+                            if let Ok(format) = device.default_output_config() {
+                                self.config.update(|s| {
+                                    s.sample_rate = crate::config::SampleRate::from_number(format.sample_rate()).unwrap_or_default();
+                                    s.channel_count = crate::config::ChannelCount::from_number(format.channels()).unwrap_or_default();
+                                    s.audio_format = crate::config::AudioFormat::from_cpal_format(format.sample_format()).unwrap_or_default();
+                                });
+                            }
+                        }
+                    }
+
+                    if self.pending_connect || self.config.data().auto_connect {
+                        self.pending_connect = false;
                         return self.connect();
                     }
                 }

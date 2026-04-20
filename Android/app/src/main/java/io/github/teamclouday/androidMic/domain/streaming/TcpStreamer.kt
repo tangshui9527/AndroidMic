@@ -19,6 +19,7 @@ import java.io.IOException
 import java.net.InetSocketAddress
 import java.net.Socket
 import java.net.SocketTimeoutException
+import java.lang.Thread
 
 class TcpStreamer(
     private val scope: CoroutineScope,
@@ -73,16 +74,39 @@ class TcpStreamer(
     override fun connect(): Boolean {
 
         val p = port
-        val socket = createSocket(p, 1500) ?: return false
+        var lastError: String = ""
+        
+        // Try multiple times with longer timeout
+        for (attempt in 1..5) {
+            Log.d(tag, "Connection attempt $attempt to $ip:$p")
+            
+            val socket = createSocket(p, 3000)
+            if (socket == null) {
+                lastError = "createSocket failed"
+                Log.d(tag, "Attempt $attempt failed: $lastError")
+                if (attempt < 5) {
+                    try { Thread.sleep(1000) } catch (e: Exception) { }
+                }
+                continue
+            }
 
-        if (!handShake(socket)) {
-            Log.d(tag, "connect [Socket]: handshake error")
-            socket.close()
-            return false
+            if (!handShake(socket)) {
+                Log.d(tag, "Attempt $attempt: handshake error")
+                lastError = "handshake failed"
+                try { socket.close() } catch (e: Exception) { }
+                if (attempt < 5) {
+                    try { Thread.sleep(1000) } catch (e: Exception) { }
+                }
+                continue
+            }
+
+            this.socket = socket
+            Log.d(tag, "Connection successful on attempt $attempt")
+            return true
         }
-
-        this.socket = socket
-        return true
+        
+        Log.d(tag, "All connection attempts failed. Last error: $lastError")
+        return false
     }
 
     // stream data through socket
@@ -172,15 +196,24 @@ class TcpStreamer(
 
         return try {
             val out = socket.getOutputStream()
-            out.write(CHECK_1.toByteArray())
+            out.write(CHECK_1.toByteArray(Charsets.UTF_8))
             out.flush()
 
             val input = socket.getInputStream()
             val msgBuf = ByteArray(CHECK_2.length)
-            input.read(msgBuf)
-            msgBuf.contentEquals(CHECK_2.toByteArray())
+            
+            var totalRead = 0
+            while (totalRead < msgBuf.size) {
+                val read = input.read(msgBuf, totalRead, msgBuf.size - totalRead)
+                if (read == -1) break
+                totalRead += read
+            }
+            
+            val expected = CHECK_2.toByteArray(Charsets.UTF_8)
+            msgBuf.contentEquals(expected)
 
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            Log.d(tag, "handshake exception: ${e.message}")
             false
         }
     }
