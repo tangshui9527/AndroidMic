@@ -24,7 +24,7 @@ use cosmic::{
 
 use super::{
     message::{AppMsg, ConfigMsg},
-    view::{main_window, settings_window},
+    view::{main_window, phone_ip_window, settings_window},
     wave::AudioWave,
 };
 
@@ -195,12 +195,15 @@ pub struct AppState {
     pub connection_state: ConnectionState,
     pub network_adapters: Vec<NetworkAdapter>,
     pub network_adapter: Option<NetworkAdapter>,
+    pub phone_ip_presets: Vec<String>,
     pub remote_ip: Option<IpAddr>,
     pub port_input: String,
     pub phone_ip_input: String,
+    pub phone_ip_suffix_input: String,
     pub adb_port_input: String,
     pub main_window: Option<CustomWindow>,
     pub settings_window: Option<CustomWindow>,
+    pub phone_ip_window: Option<CustomWindow>,
     pub about_window: Option<CustomWindow>,
     pub logs: Vec<markdown::Item>,
     log_path: String,
@@ -215,6 +218,20 @@ pub struct AppState {
 
 pub struct CustomWindow {
     pub window_id: window::Id,
+}
+
+fn phone_ip_presets(current: &str) -> Vec<String> {
+    let mut presets = vec![
+        "192.168.31.6".to_string(),
+        "192.168.31.11".to_string(),
+        "192.168.31.17".to_string(),
+    ];
+
+    if !presets.iter().any(|preset| preset == current) {
+        presets.push(current.to_string());
+    }
+
+    presets
 }
 
 impl AppState {
@@ -291,6 +308,8 @@ impl AppState {
                 ConnectOption::Tcp {
                     ip,
                     port: config.port,
+                    phone_ip: Some(config.phone_ip_or_default().to_string()),
+                    adb_port: config.adb_port,
                 }
             }
             ConnectionMode::Udp => {
@@ -303,6 +322,8 @@ impl AppState {
                 ConnectOption::Udp {
                     ip,
                     port: config.port,
+                    phone_ip: Some(config.phone_ip_or_default().to_string()),
+                    adb_port: config.adb_port,
                 }
             }
             #[cfg(feature = "adb")]
@@ -442,12 +463,15 @@ impl Application for AppState {
             connection_state: ConnectionState::Default,
             network_adapters,
             network_adapter,
+            phone_ip_presets: phone_ip_presets(config.phone_ip_or_default()),
             remote_ip: None,
             port_input: config.port.to_string(),
             phone_ip_input: config.phone_ip_or_default().to_string(),
+            phone_ip_suffix_input: config.phone_ip_suffix_or_default().to_string(),
             adb_port_input: config.adb_port.to_string(),
             main_window: None,
             settings_window: None,
+            phone_ip_window: None,
             about_window: None,
             logs: Vec::new(),
             log_path: flags.log_path.clone(),
@@ -654,6 +678,14 @@ impl Application for AppState {
                 self.network_adapter = Some(adapter.clone());
                 return self.add_log(format!("Selected network adapter: {adapter}").as_str());
             }
+            AppMsg::PhoneIpPreset(phone_ip) => {
+                self.config.update(|c| c.phone_ip = phone_ip.clone());
+                self.phone_ip_input = phone_ip.clone();
+                self.phone_ip_presets = phone_ip_presets(&phone_ip);
+                self.phone_ip_suffix_input =
+                    self.config.data().phone_ip_suffix_or_default().to_string();
+                return self.add_log(format!("Changed phone IP to {}", phone_ip).as_str());
+            }
             AppMsg::Connect => {
                 return self.connect();
             }
@@ -680,6 +712,31 @@ impl Application for AppState {
                     self.settings_window = Some(CustomWindow { window_id: new_id });
                     let set_window_title =
                         self.set_window_title(fl!("settings_window_title"), new_id);
+                    return command
+                        .map(|_| cosmic::action::Action::None)
+                        .chain(set_window_title);
+                }
+            },
+            AppMsg::TogglePhoneIpWindow => match &self.phone_ip_window {
+                Some(phone_ip_window) => {
+                    let id = phone_ip_window.window_id;
+                    self.phone_ip_window = None;
+                    return cosmic::iced::runtime::task::effect(
+                        cosmic::iced::runtime::Action::Window(window::Action::Close(id)),
+                    );
+                }
+                None => {
+                    let settings = window::Settings {
+                        size: Size::new(420.0, 180.0),
+                        position: window::Position::Centered,
+                        icon: window_icon!("icon"),
+                        ..Default::default()
+                    };
+
+                    let (new_id, command) = cosmic::iced::window::open(settings);
+                    self.phone_ip_window = Some(CustomWindow { window_id: new_id });
+                    let set_window_title =
+                        self.set_window_title("Edit Phone IP".to_string(), new_id);
                     return command
                         .map(|_| cosmic::action::Action::None)
                         .chain(set_window_title);
@@ -712,17 +769,85 @@ impl Application for AppState {
                     self.port_input = port.to_string();
                     return self.add_log(format!("Changed port to {}", port).as_str());
                 }
-                ConfigMsg::PhoneIpTextInput(text) => {
+                ConfigMsg::PortIncrement => {
+                    let port = self.config.data().port.saturating_add(1);
+                    self.config.update(|c| c.port = port);
+                    self.port_input = port.to_string();
+                    return self.add_log(format!("Changed port to {}", port).as_str());
+                }
+                ConfigMsg::PortDecrement => {
+                    let port = self.config.data().port.saturating_sub(1).max(1);
+                    self.config.update(|c| c.port = port);
+                    self.port_input = port.to_string();
+                    return self.add_log(format!("Changed port to {}", port).as_str());
+                }
+                ConfigMsg::PhoneIpFullTextInput(text) => {
+                    self.config.update(|c| c.phone_ip = text.clone());
                     self.phone_ip_input = text;
+                    self.phone_ip_presets = phone_ip_presets(&self.phone_ip_input);
+                    self.phone_ip_suffix_input =
+                        self.config.data().phone_ip_suffix_or_default().to_string();
+                    return self
+                        .add_log(format!("Changed phone IP to {}", self.phone_ip_input).as_str());
+                }
+                ConfigMsg::PhoneIpTextInput(text) => {
+                    let sanitized = text
+                        .chars()
+                        .filter(|char| char.is_ascii_digit())
+                        .take(3)
+                        .collect::<String>();
+
+                    if sanitized.is_empty() {
+                        self.phone_ip_suffix_input.clear();
+                    } else {
+                        self.phone_ip_suffix_input = sanitized.clone();
+
+                        if let Ok(value) = sanitized.parse::<u16>()
+                            && value <= 255
+                        {
+                            let phone_ip = crate::config::Config::phone_ip_from_suffix(&sanitized);
+                            self.config.update(|c| c.phone_ip = phone_ip);
+                        }
+                    }
                 }
                 ConfigMsg::PhoneIpSave => {
                     let phone_ip = if self.phone_ip_input.trim().is_empty() {
-                        "192.168.31.6".to_string()
+                        crate::config::DEFAULT_PHONE_IP.to_string()
                     } else {
                         self.phone_ip_input.trim().to_string()
                     };
                     self.config.update(|c| c.phone_ip = phone_ip.clone());
                     self.phone_ip_input = phone_ip.clone();
+                    self.phone_ip_suffix_input =
+                        self.config.data().phone_ip_suffix_or_default().to_string();
+                    return self.add_log(format!("Changed phone IP to {}", phone_ip).as_str());
+                }
+                ConfigMsg::PhoneIpIncrement => {
+                    let current = self
+                        .config
+                        .data()
+                        .phone_ip_suffix_or_default()
+                        .parse::<u16>()
+                        .unwrap_or(6);
+                    let next = (current.saturating_add(1)).min(255);
+                    let phone_ip = crate::config::Config::phone_ip_from_suffix(&next.to_string());
+                    self.config.update(|c| c.phone_ip = phone_ip.clone());
+                    self.phone_ip_input = phone_ip.clone();
+                    self.phone_ip_suffix_input = next.to_string();
+                    return self.add_log(format!("Changed phone IP to {}", phone_ip).as_str());
+                }
+                ConfigMsg::PhoneIpDecrement => {
+                    let current = self
+                        .config
+                        .data()
+                        .phone_ip_suffix_or_default()
+                        .parse::<u16>()
+                        .unwrap_or(6);
+                    let next = current.saturating_sub(1).max(1);
+                    let phone_ip = crate::config::Config::phone_ip_from_suffix(&next.to_string());
+                    self.config.update(|c| c.phone_ip = phone_ip.clone());
+                    self.phone_ip_input = phone_ip.clone();
+                    self.phone_ip_suffix_input = next.to_string();
                     return self.add_log(format!("Changed phone IP to {}", phone_ip).as_str());
                 }
                 ConfigMsg::AdbPortTextInput(text) => {
@@ -741,6 +866,18 @@ impl Application for AppState {
                             }
                         }
                     };
+                    self.config.update(|c| c.adb_port = adb_port);
+                    self.adb_port_input = adb_port.to_string();
+                    return self.add_log(format!("Changed ADB port to {}", adb_port).as_str());
+                }
+                ConfigMsg::AdbPortIncrement => {
+                    let adb_port = self.config.data().adb_port.saturating_add(1);
+                    self.config.update(|c| c.adb_port = adb_port);
+                    self.adb_port_input = adb_port.to_string();
+                    return self.add_log(format!("Changed ADB port to {}", adb_port).as_str());
+                }
+                ConfigMsg::AdbPortDecrement => {
+                    let adb_port = self.config.data().adb_port.saturating_sub(1).max(1);
                     self.config.update(|c| c.adb_port = adb_port);
                     self.adb_port_input = adb_port.to_string();
                     return self.add_log(format!("Changed ADB port to {}", adb_port).as_str());
@@ -895,6 +1032,14 @@ impl Application for AppState {
                     ));
                     self.settings_window = None;
                 }
+                if let Some(phone_ip_window) = &self.phone_ip_window {
+                    effects.push(cosmic::iced_runtime::task::effect(
+                        cosmic::iced::runtime::Action::Window(window::Action::Close(
+                            phone_ip_window.window_id,
+                        )),
+                    ));
+                    self.phone_ip_window = None;
+                }
                 if let Some(about_window) = &self.about_window {
                     effects.push(cosmic::iced_runtime::task::effect(
                         cosmic::iced::runtime::Action::Window(window::Action::Close(
@@ -992,6 +1137,11 @@ impl Application for AppState {
         {
             return settings_window(self).map(AppMsg::Config);
         }
+        if let Some(window) = &self.phone_ip_window
+            && window.window_id == id
+        {
+            return phone_ip_window(self).map(AppMsg::Config);
+        }
         if let Some(window) = &self.main_window
             && window.window_id == id
         {
@@ -1032,6 +1182,11 @@ impl Application for AppState {
             && window.window_id == id
         {
             return Some(AppMsg::Config(ConfigMsg::ToggleAboutWindow));
+        }
+        if let Some(window) = &self.phone_ip_window
+            && window.window_id == id
+        {
+            return Some(AppMsg::TogglePhoneIpWindow);
         }
         if let Some(window) = &self.main_window
             && window.window_id == id

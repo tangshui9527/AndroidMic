@@ -22,10 +22,14 @@ pub enum ConnectOption {
     Tcp {
         ip: IpAddr,
         port: u16,
+        phone_ip: Option<String>,
+        adb_port: u16,
     },
     Udp {
         ip: IpAddr,
         port: u16,
+        phone_ip: Option<String>,
+        adb_port: u16,
     },
     #[cfg(feature = "adb")]
     Adb {
@@ -148,10 +152,58 @@ pub fn sub() -> impl Stream<Item = StreamerMsg> {
                                     AudioStream::new(buff, audio_params, is_window_visible);
                                 let new_streamer: Result<Streamer, ConnectError> =
                                     match connect_options {
-                                        ConnectOption::Tcp { ip, port } => {
-                                            tcp_streamer::new(ip, port, stream_config)
-                                                .await
-                                                .map(Streamer::from)
+                                        ConnectOption::Tcp {
+                                            ip,
+                                            port,
+                                            phone_ip,
+                                            adb_port,
+                                        } => {
+                                            match tcp_streamer::new(ip, port, stream_config).await {
+                                                Ok(streamer) => {
+                                                    let listen_port = streamer.port;
+                                                    if let Some(phone_ip) = phone_ip
+                                                        .as_deref()
+                                                        .map(str::trim)
+                                                        .filter(|phone_ip| !phone_ip.is_empty())
+                                                    {
+                                                        if let Err(error) = crate::streamer::adb_streamer::adb_connect(
+                                                            phone_ip, adb_port,
+                                                        )
+                                                        .await
+                                                        {
+                                                            Err(error)
+                                                        } else {
+                                                            match crate::streamer::adb_streamer::get_connected_devices().await {
+                                                                Ok(devices) => {
+                                                                    let mut launch_error = None;
+                                                                    for device_id in &devices {
+                                                                        if let Err(error) = crate::streamer::adb_streamer::launch_android_app(
+                                                                            device_id,
+                                                                            crate::streamer::adb_streamer::RemoteLaunchMode::Wifi,
+                                                                            Some(&ip.to_string()),
+                                                                            listen_port,
+                                                                        )
+                                                                        .await
+                                                                        {
+                                                                            launch_error = Some(error);
+                                                                            break;
+                                                                        }
+                                                                    }
+                                                                    if let Some(error) = launch_error {
+                                                                        Err(error)
+                                                                    } else {
+                                                                        Ok(Streamer::from(streamer))
+                                                                    }
+                                                                }
+                                                                Err(error) => Err(error),
+                                                            }
+                                                        }
+                                                    } else {
+                                                        Ok(Streamer::from(streamer))
+                                                    }
+                                                }
+                                                Err(error) => Err(error),
+                                            }
                                         }
                                         #[cfg(feature = "adb")]
                                         ConnectOption::Adb {
@@ -166,10 +218,58 @@ pub fn sub() -> impl Stream<Item = StreamerMsg> {
                                         )
                                         .await
                                         .map(Streamer::from),
-                                        ConnectOption::Udp { ip, port } => {
-                                            udp_streamer::new(ip, port, stream_config)
-                                                .await
-                                                .map(Streamer::from)
+                                        ConnectOption::Udp {
+                                            ip,
+                                            port,
+                                            phone_ip,
+                                            adb_port,
+                                        } => {
+                                            match udp_streamer::new(ip, port, stream_config).await {
+                                                Ok(streamer) => {
+                                                    let listen_port = streamer.port;
+                                                    if let Some(phone_ip) = phone_ip
+                                                        .as_deref()
+                                                        .map(str::trim)
+                                                        .filter(|phone_ip| !phone_ip.is_empty())
+                                                    {
+                                                        if let Err(error) = crate::streamer::adb_streamer::adb_connect(
+                                                            phone_ip, adb_port,
+                                                        )
+                                                        .await
+                                                        {
+                                                            Err(error)
+                                                        } else {
+                                                            match crate::streamer::adb_streamer::get_connected_devices().await {
+                                                                Ok(devices) => {
+                                                                    let mut launch_error = None;
+                                                                    for device_id in &devices {
+                                                                        if let Err(error) = crate::streamer::adb_streamer::launch_android_app(
+                                                                            device_id,
+                                                                            crate::streamer::adb_streamer::RemoteLaunchMode::Udp,
+                                                                            Some(&ip.to_string()),
+                                                                            listen_port,
+                                                                        )
+                                                                        .await
+                                                                        {
+                                                                            launch_error = Some(error);
+                                                                            break;
+                                                                        }
+                                                                    }
+                                                                    if let Some(error) = launch_error {
+                                                                        Err(error)
+                                                                    } else {
+                                                                        Ok(Streamer::from(streamer))
+                                                                    }
+                                                                }
+                                                                Err(error) => Err(error),
+                                                            }
+                                                        }
+                                                    } else {
+                                                        Ok(Streamer::from(streamer))
+                                                    }
+                                                }
+                                                Err(error) => Err(error),
+                                            }
                                         }
                                         #[cfg(feature = "usb")]
                                         ConnectOption::Usb => {

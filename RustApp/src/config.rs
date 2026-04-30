@@ -7,6 +7,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::{fl, streamer::DEFAULT_PC_PORT};
 
+pub const DEFAULT_PHONE_IP_PREFIX: &str = "192.168.31.";
+pub const DEFAULT_PHONE_IP_SUFFIX: &str = "6";
+pub const DEFAULT_PHONE_IP: &str = "192.168.31.6";
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Config {
@@ -104,7 +108,7 @@ impl Default for Config {
             connection_mode: Default::default(),
             ip: None,
             port: DEFAULT_PC_PORT,
-            phone_ip: "192.168.31.6".to_string(),
+            phone_ip: DEFAULT_PHONE_IP.to_string(),
             adb_port: 5555,
             audio_format: Default::default(),
             channel_count: Default::default(),
@@ -149,9 +153,27 @@ impl Config {
         let phone_ip = self.phone_ip.trim();
 
         if phone_ip.is_empty() {
-            "192.168.31.6"
+            DEFAULT_PHONE_IP
         } else {
             phone_ip
+        }
+    }
+
+    pub fn phone_ip_suffix_or_default(&self) -> &str {
+        self.phone_ip_or_default()
+            .rsplit('.')
+            .next()
+            .filter(|suffix| !suffix.is_empty())
+            .unwrap_or(DEFAULT_PHONE_IP_SUFFIX)
+    }
+
+    pub fn phone_ip_from_suffix(suffix: &str) -> String {
+        let trimmed = suffix.trim().trim_start_matches('.');
+
+        if trimmed.is_empty() {
+            format!("{DEFAULT_PHONE_IP_PREFIX}{DEFAULT_PHONE_IP_SUFFIX}")
+        } else {
+            format!("{DEFAULT_PHONE_IP_PREFIX}{trimmed}")
         }
     }
 }

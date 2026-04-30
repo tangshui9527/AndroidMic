@@ -32,27 +32,36 @@ pub static SCROLLABLE_ID: LazyLock<cosmic::widget::Id> = LazyLock::new(cosmic::w
 
 pub fn main_window(app: &AppState) -> Element<'_, AppMsg> {
     row()
-        .padding(50)
-        .spacing(50)
+        .padding(32)
+        .spacing(28)
         .push(
             column()
-                .width(Length::FillPortion(2))
+                .width(Length::FillPortion(4))
                 .height(Length::Fill)
-                .spacing(50)
+                .spacing(20)
+                .push(info_bar(app))
                 .push(logs(app))
                 .push(wave(app)),
         )
         .push(
             column()
-                .width(Length::FillPortion(1))
+                .width(Length::FillPortion(3))
                 .height(Length::Fill)
-                .spacing(24)
+                .spacing(16)
                 .align_x(Horizontal::Left)
-                .push(network_adapter(app))
+                .push(phone_controls(app))
                 .push(audio(app))
-                .push(status_panel(app))
                 .push(connection_type(app)),
         )
+        .into()
+}
+
+fn info_bar(app: &AppState) -> Element<'_, AppMsg> {
+    row()
+        .width(Length::Fill)
+        .spacing(16)
+        .push(network_adapter(app))
+        .push(status_panel(app))
         .into()
 }
 
@@ -72,11 +81,13 @@ fn status_panel(app: &AppState) -> Element<'_, AppMsg> {
 
     column()
         .spacing(8)
-        .align_x(Horizontal::Center)
+        .width(Length::FillPortion(1))
+        .align_x(Horizontal::Left)
         .push(text::title4("Status"))
         .push(
             container(text(status_text))
                 .padding([8, 16])
+                .width(Length::Fill)
                 .class(cosmic::theme::Container::Card),
         )
         .into()
@@ -163,6 +174,7 @@ fn network_adapter(app: &AppState) -> Element<'_, AppMsg> {
 
     column()
         .spacing(8)
+        .width(Length::FillPortion(2))
         .align_x(Horizontal::Left)
         .push(text::title4(fl!("network_adapter")))
         .push_maybe(
@@ -188,44 +200,58 @@ fn network_adapter(app: &AppState) -> Element<'_, AppMsg> {
                         )
                 }),
         )
+        .into()
+}
+
+fn phone_controls(app: &AppState) -> Element<'_, AppMsg> {
+    column()
+        .spacing(10)
+        .align_x(Horizontal::Left)
+        .push(text::title4("Phone"))
         .push(
             row()
                 .width(Length::Fill)
                 .align_y(Vertical::Center)
                 .spacing(5)
-                .push(text(fl!("phone_ip")).width(Length::Fixed(110.0)))
+                .push(text(fl!("phone_ip")).width(Length::Fixed(120.0)))
                 .push(
-                    text_input("192.168.31.x", &app.phone_ip_input)
-                        .on_input(|text| AppMsg::Config(ConfigMsg::PhoneIpTextInput(text)))
-                        .width(Length::Fill),
-                )
-                .push(button::text(fl!("save")).on_press(AppMsg::Config(ConfigMsg::PhoneIpSave))),
+                    pick_list(
+                        app.phone_ip_presets.clone(),
+                        Some(&app.phone_ip_input),
+                        AppMsg::PhoneIpPreset,
+                    )
+                    .width(Length::Fill),
+                ),
         )
         .push(
             row()
                 .width(Length::Fill)
                 .align_y(Vertical::Center)
                 .spacing(5)
-                .push(text(fl!("adb_port")).width(Length::Fixed(110.0)))
+                .push(text(fl!("adb_port")).width(Length::Fixed(120.0)))
+                .push(button::text("-").on_press(AppMsg::Config(ConfigMsg::AdbPortDecrement)))
                 .push(
-                    text_input("5555", &app.adb_port_input)
-                        .on_input(|text| AppMsg::Config(ConfigMsg::AdbPortTextInput(text)))
-                        .width(Length::Fill),
+                    container(text(&app.adb_port_input))
+                        .padding([8, 16])
+                        .width(Length::Fixed(96.0))
+                        .class(cosmic::theme::Container::Card),
                 )
-                .push(button::text(fl!("save")).on_press(AppMsg::Config(ConfigMsg::AdbPortSave))),
+                .push(button::text("+").on_press(AppMsg::Config(ConfigMsg::AdbPortIncrement))),
         )
         .push(
             row()
                 .width(Length::Fill)
                 .align_y(Vertical::Center)
                 .spacing(5)
-                .push(text(fl!("pc_port")).width(Length::Fixed(110.0)))
+                .push(text(fl!("pc_port")).width(Length::Fixed(120.0)))
+                .push(button::text("-").on_press(AppMsg::Config(ConfigMsg::PortDecrement)))
                 .push(
-                    text_input("", &app.port_input)
-                        .on_input(|text| AppMsg::Config(ConfigMsg::PortTextInput(text)))
-                        .width(Length::Fill),
+                    container(text(&app.port_input))
+                        .padding([8, 16])
+                        .width(Length::Fixed(110.0))
+                        .class(cosmic::theme::Container::Card),
                 )
-                .push(button::text(fl!("save")).on_press(AppMsg::Config(ConfigMsg::PortSave))),
+                .push(button::text("+").on_press(AppMsg::Config(ConfigMsg::PortIncrement))),
         )
         .into()
 }
@@ -234,12 +260,12 @@ fn connection_type(app: &AppState) -> Element<'_, AppMsg> {
     let connection_mode = &app.config.data().connection_mode;
 
     column()
-        .spacing(12)
+        .spacing(8)
         .align_x(Horizontal::Left)
         .push(text::title4(fl!("connection")))
         .push(
             column()
-                .spacing(6)
+                .spacing(4)
                 .push(radio(
                     text(fl!("connection_tcp")),
                     &ConnectionMode::Tcp,
@@ -285,9 +311,12 @@ fn connection_type(app: &AppState) -> Element<'_, AppMsg> {
                     }
                 }),
         )
-        .push(row().spacing(10).push(connect_button(app)).push(
-            button::text(fl!("settings")).on_press(AppMsg::ToggleSettingsWindow),
-        ))
+        .push(
+            row()
+                .spacing(10)
+                .push(connect_button(app))
+                .push(button::text(fl!("settings")).on_press(AppMsg::ToggleSettingsWindow)),
+        )
         .into()
 }
 
@@ -380,11 +409,13 @@ pub fn settings_window(app: &AppState) -> Element<'_, ConfigMsg> {
                                 .push(text(fl!("phone_ip")))
                                 .push(horizontal_space())
                                 .push(
-                                    text_input("192.168.31.x", &app.phone_ip_input)
-                                        .on_input(ConfigMsg::PhoneIpTextInput)
-                                        .width(Length::Fixed(180.0)),
-                                )
-                                .push(button::text(fl!("save")).on_press(ConfigMsg::PhoneIpSave)),
+                                    pick_list(
+                                        app.phone_ip_presets.clone(),
+                                        Some(&app.phone_ip_input),
+                                        ConfigMsg::PhoneIpFullTextInput,
+                                    )
+                                    .width(Length::Fixed(180.0)),
+                                ),
                         )
                         .push(
                             row()
@@ -614,6 +645,26 @@ pub fn settings_window(app: &AppState) -> Element<'_, ConfigMsg> {
                     )),
             ),
     )
+    .into()
+}
+
+pub fn phone_ip_window(app: &AppState) -> Element<'_, ConfigMsg> {
+    container(
+        column()
+            .padding(24)
+            .spacing(16)
+            .push(text::title4("Phone IP"))
+            .push(
+                pick_list(
+                    app.phone_ip_presets.clone(),
+                    Some(&app.phone_ip_input),
+                    ConfigMsg::PhoneIpFullTextInput,
+                )
+                .width(Length::Fill),
+            ),
+    )
+    .width(Length::Fill)
+    .height(Length::Fill)
     .into()
 }
 

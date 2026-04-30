@@ -15,16 +15,34 @@ pub struct AdbStreamer {
     tcp_streamer: TcpStreamer,
 }
 
+#[derive(Clone, Copy)]
+pub enum RemoteLaunchMode {
+    Wifi,
+    Udp,
+    Adb,
+}
+
+impl RemoteLaunchMode {
+    fn as_android_mode(self) -> &'static str {
+        match self {
+            RemoteLaunchMode::Wifi => "WIFI",
+            RemoteLaunchMode::Udp => "UDP",
+            RemoteLaunchMode::Adb => "ADB",
+        }
+    }
+}
+
 const ANDROID_PACKAGES: &[&str] = &[
     "io.github.teamclouday.AndroidMic.debug",
     "io.github.teamclouday.AndroidMic.nightly",
     "io.github.teamclouday.AndroidMic",
 ];
 const MAIN_ACTIVITY: &str = "io.github.teamclouday.androidMic.ui.MainActivity";
-const FOREGROUND_SERVICE: &str = "io.github.teamclouday.androidMic.domain.service.ForegroundService";
+const FOREGROUND_SERVICE: &str =
+    "io.github.teamclouday.androidMic.domain.service.ForegroundService";
 const AUTO_CONNECT_ACTION: &str = "io.github.teamclouday.androidMic.AUTO_CONNECT";
 
-async fn get_connected_devices() -> Result<Vec<String>, ConnectError> {
+pub async fn get_connected_devices() -> Result<Vec<String>, ConnectError> {
     let mut cmd = Command::new("adb");
     cmd.arg("devices");
 
@@ -42,14 +60,14 @@ async fn get_connected_devices() -> Result<Vec<String>, ConnectError> {
     Ok(devices)
 }
 
-async fn adb_connect(phone_ip: &str, adb_port: u16) -> Result<(), ConnectError> {
+pub async fn adb_connect(phone_ip: &str, adb_port: u16) -> Result<(), ConnectError> {
     let mut cmd = Command::new("adb");
     cmd.arg("connect").arg(format!("{phone_ip}:{adb_port}"));
     exec_cmd(cmd).await?;
     Ok(())
 }
 
-async fn remove_adb_reverse_proxy(device_id: &str, port: u16) -> Result<(), ConnectError> {
+pub async fn remove_adb_reverse_proxy(device_id: &str, port: u16) -> Result<(), ConnectError> {
     let mut cmd = Command::new("adb");
     cmd.arg("-s")
         .arg(device_id)
@@ -62,7 +80,30 @@ async fn remove_adb_reverse_proxy(device_id: &str, port: u16) -> Result<(), Conn
     Ok(())
 }
 
-async fn launch_android_app(device_id: &str, port: u16) -> Result<(), ConnectError> {
+pub async fn setup_adb_reverse_proxy(device_id: &str, port: u16) -> Result<(), ConnectError> {
+    if let Err(e) = remove_adb_reverse_proxy(device_id, port).await
+        && !e.to_string().contains("not found")
+    {
+        warn!("cannot remove adb proxy for device {device_id}: {e}");
+    }
+
+    let mut cmd = Command::new("adb");
+    cmd.arg("-s")
+        .arg(device_id)
+        .arg("reverse")
+        .arg(format!("tcp:{}", port))
+        .arg(format!("tcp:{}", port));
+    exec_cmd(cmd).await?;
+
+    Ok(())
+}
+
+pub async fn launch_android_app(
+    device_id: &str,
+    mode: RemoteLaunchMode,
+    ip: Option<&str>,
+    port: u16,
+) -> Result<(), ConnectError> {
     let mut last_error: Option<ConnectError> = None;
 
     for package in ANDROID_PACKAGES {
@@ -82,10 +123,13 @@ async fn launch_android_app(device_id: &str, port: u16) -> Result<(), ConnectErr
             .arg("true")
             .arg("--es")
             .arg("mode")
-            .arg("ADB")
+            .arg(mode.as_android_mode())
             .arg("--es")
             .arg("port")
             .arg(port.to_string());
+        if let Some(ip) = ip {
+            service_cmd.arg("--es").arg("ip").arg(ip);
+        }
 
         match exec_cmd(service_cmd).await {
             Ok(_) => {
@@ -103,10 +147,13 @@ async fn launch_android_app(device_id: &str, port: u16) -> Result<(), ConnectErr
                     .arg("true")
                     .arg("--es")
                     .arg("mode")
-                    .arg("ADB")
+                    .arg(mode.as_android_mode())
                     .arg("--es")
                     .arg("port")
                     .arg(port.to_string());
+                if let Some(ip) = ip {
+                    activity_cmd.arg("--es").arg("ip").arg(ip);
+                }
                 let _ = exec_cmd(activity_cmd).await;
                 return Ok(());
             }
@@ -159,21 +206,8 @@ pub async fn new(
     }
 
     for device_id in &devices {
-        if let Err(e) = remove_adb_reverse_proxy(device_id, tcp_streamer.port).await {
-            if !e.to_string().contains("not found") {
-                warn!("cannot remove adb proxy for device {device_id}: {e}");
-            }
-        }
-
-        let mut cmd = Command::new("adb");
-        cmd.arg("-s")
-            .arg(device_id)
-            .arg("reverse")
-            .arg(format!("tcp:{}", tcp_streamer.port))
-            .arg(format!("tcp:{}", tcp_streamer.port));
-        exec_cmd(cmd).await?;
-
-        launch_android_app(device_id, tcp_streamer.port).await?;
+        setup_adb_reverse_proxy(device_id, tcp_streamer.port).await?;
+        launch_android_app(device_id, RemoteLaunchMode::Adb, None, tcp_streamer.port).await?;
     }
 
     let streamer = AdbStreamer { tcp_streamer };
