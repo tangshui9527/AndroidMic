@@ -104,6 +104,69 @@ fn get_audio_devices(audio_host: &Host) -> Vec<AudioDevice> {
         .collect()
 }
 
+fn preferred_audio_device(
+    audio_host: &Host,
+    audio_devices: &[AudioDevice],
+    config: &Config,
+) -> Option<Device> {
+    if let Some(id) = &config.device_id
+        && let Some(audio_device) = audio_devices
+            .iter()
+            .find(|audio_device| &audio_device.id == id)
+    {
+        return Some(audio_device.device.clone());
+    }
+
+    if let Some(audio_device) = audio_devices.iter().find(|audio_device| {
+        audio_device.name.contains("BlackHole 2ch") || audio_device.id.contains("BlackHole2ch")
+    }) {
+        return Some(audio_device.device.clone());
+    }
+
+    audio_host.default_output_device()
+}
+
+fn get_network_adapters() -> Vec<NetworkAdapter> {
+    let adapters = list_afinet_netifas()
+        .unwrap_or_default()
+        .iter()
+        .filter(|(_, ip)| ip.is_ipv4())
+        .map(|(name, ip)| NetworkAdapter {
+            name: name.clone(),
+            ip: *ip,
+        })
+        .collect::<Vec<_>>();
+
+    let en1_adapters = adapters
+        .iter()
+        .filter(|adapter| adapter.name == "en1")
+        .cloned()
+        .collect::<Vec<_>>();
+
+    if en1_adapters.is_empty() {
+        adapters
+    } else {
+        en1_adapters
+    }
+}
+
+fn preferred_network_adapter(
+    network_adapters: &[NetworkAdapter],
+    config: &Config,
+) -> Option<NetworkAdapter> {
+    if let Some(ip) = config.ip
+        && let Some(adapter) = network_adapters.iter().find(|adapter| adapter.ip == ip)
+    {
+        return Some(adapter.clone());
+    }
+
+    network_adapters
+        .iter()
+        .find(|adapter| adapter.name == "en1")
+        .cloned()
+        .or_else(|| network_adapters.first().cloned())
+}
+
 const SHARED_BUF_SIZE_S: f32 = 1.; // 0.15s
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -134,6 +197,8 @@ pub struct AppState {
     pub network_adapter: Option<NetworkAdapter>,
     pub remote_ip: Option<IpAddr>,
     pub port_input: String,
+    pub phone_ip_input: String,
+    pub adb_port_input: String,
     pub main_window: Option<CustomWindow>,
     pub settings_window: Option<CustomWindow>,
     pub about_window: Option<CustomWindow>,
@@ -206,7 +271,10 @@ impl AppState {
             Ok(audio_config) => Some(audio_config),
             Err(e) => {
                 error!("failed to start audio stream: {e}");
-                let _ = self.add_log(&format!("Warning: Audio device failed, connection only mode. ({})", e));
+                let _ = self.add_log(&format!(
+                    "Warning: Audio device failed, connection only mode. ({})",
+                    e
+                ));
                 None
             }
         };
@@ -238,7 +306,11 @@ impl AppState {
                 }
             }
             #[cfg(feature = "adb")]
-            ConnectionMode::Adb => ConnectOption::Adb { port: config.port },
+            ConnectionMode::Adb => ConnectOption::Adb {
+                phone_ip: Some(config.phone_ip_or_default().to_string()),
+                adb_port: config.adb_port,
+                port: config.port,
+            },
             #[cfg(feature = "usb")]
             ConnectionMode::Usb => ConnectOption::Usb,
         };
@@ -332,45 +404,16 @@ impl Application for AppState {
         core: cosmic::app::Core,
         flags: Self::Flags,
     ) -> (Self, cosmic::app::Task<Self::Message>) {
+        let config = flags.config.data().clone();
+
         // initialize audio device
         let audio_host = cpal::default_host();
         let audio_devices = get_audio_devices(&audio_host);
-        let audio_device = match &flags.config.data().device_id {
-            Some(id) => {
-                match audio_devices
-                    .iter()
-                    .find(|audio_device| &audio_device.id == id)
-                {
-                    Some(audio_device) => Some(audio_device.device.clone()),
-                    None => {
-                        warn!("can't find audio device {}", id);
-                        audio_host.default_output_device()
-                    }
-                }
-            }
-            None => audio_host.default_output_device(),
-        };
+        let audio_device = preferred_audio_device(&audio_host, &audio_devices, &config);
 
         // initialize network adapter
-        let network_adapters = list_afinet_netifas()
-            .unwrap()
-            .iter()
-            .filter(|(_, ip)| ip.is_ipv4())
-            .map(|(name, ip)| NetworkAdapter {
-                name: name.clone(),
-                ip: *ip,
-            })
-            .collect::<Vec<_>>();
-        let network_adapter = match &flags.config.data().ip_or_default() {
-            Some(ip) => match network_adapters.iter().find(|adapter| adapter.ip == *ip) {
-                Some(adapter) => Some(adapter.clone()),
-                None => {
-                    warn!("can't find network adapter for IP {}", ip);
-                    network_adapters.first().cloned()
-                }
-            },
-            None => None,
-        };
+        let network_adapters = get_network_adapters();
+        let network_adapter = preferred_network_adapter(&network_adapters, &config);
 
         // initialize system tray
         #[cfg(not(target_os = "linux"))]
@@ -387,7 +430,6 @@ impl Application for AppState {
 
         let mut commands = Vec::new();
 
-        let config = flags.config.data().clone();
         let mut app = Self {
             core,
             audio_stream: None,
@@ -402,6 +444,8 @@ impl Application for AppState {
             network_adapter,
             remote_ip: None,
             port_input: config.port.to_string(),
+            phone_ip_input: config.phone_ip_or_default().to_string(),
+            adb_port_input: config.adb_port.to_string(),
             main_window: None,
             settings_window: None,
             about_window: None,
@@ -415,6 +459,16 @@ impl Application for AppState {
             launched_automatically: flags.launched_automatically,
             pending_connect: flags.listen,
         };
+
+        if let Some(audio_device) = &app.audio_device
+            && let Ok(device_id) = audio_device.id()
+        {
+            app.config.update(|cfg| cfg.device_id = Some(device_id.1));
+        }
+
+        if let Some(network_adapter) = &app.network_adapter {
+            app.config.update(|cfg| cfg.ip = Some(network_adapter.ip));
+        }
 
         commands
             .push(app.add_log(format!("app version: `{}`", env!("CARGO_PKG_VERSION")).as_str()));
@@ -457,8 +511,6 @@ impl Application for AppState {
     }
 
     fn update(&mut self, message: Self::Message) -> Task<Self::Message> {
-        let config = self.config.data();
-
         match message {
             AppMsg::ChangeConnectionMode(connection_mode) => {
                 self.config.update(|config| {
@@ -468,17 +520,26 @@ impl Application for AppState {
             AppMsg::RefreshAudioDevices => {
                 let audio_host = cpal::default_host();
                 self.audio_devices = get_audio_devices(&audio_host);
+                self.audio_host = audio_host;
+
+                if let Some(audio_device) = preferred_audio_device(
+                    &self.audio_host,
+                    &self.audio_devices,
+                    self.config.data(),
+                ) {
+                    if let Ok(device_id) = audio_device.id() {
+                        self.config.update(|cfg| cfg.device_id = Some(device_id.1));
+                    }
+                    self.audio_device = Some(audio_device);
+                }
             }
             AppMsg::RefreshNetworkAdapters => {
-                let network_adapters = list_afinet_netifas()
-                    .unwrap()
-                    .iter()
-                    .filter(|(_, ip)| ip.is_ipv4())
-                    .map(|(name, ip)| NetworkAdapter {
-                        name: name.clone(),
-                        ip: *ip,
-                    })
-                    .collect::<Vec<_>>();
+                let network_adapters = get_network_adapters();
+                self.network_adapter =
+                    preferred_network_adapter(&network_adapters, self.config.data());
+                if let Some(network_adapter) = &self.network_adapter {
+                    self.config.update(|cfg| cfg.ip = Some(network_adapter.ip));
+                }
                 self.network_adapters = network_adapters;
             }
             AppMsg::Streamer(streamer_msg) => match streamer_msg {
@@ -553,16 +614,24 @@ impl Application for AppState {
                 }
                 StreamerMsg::Ready(sender) => {
                     self.streamer = Some(sender);
-                    
+
                     // If audio device is not set or failed, try to pick recommended format
                     if self.audio_stream.is_none() {
                         let _ = self.add_log("Attempting to use recommended audio format...");
                         if let Some(device) = &self.audio_device {
                             if let Ok(format) = device.default_output_config() {
                                 self.config.update(|s| {
-                                    s.sample_rate = crate::config::SampleRate::from_number(format.sample_rate()).unwrap_or_default();
-                                    s.channel_count = crate::config::ChannelCount::from_number(format.channels()).unwrap_or_default();
-                                    s.audio_format = crate::config::AudioFormat::from_cpal_format(format.sample_format()).unwrap_or_default();
+                                    s.sample_rate = crate::config::SampleRate::from_number(
+                                        format.sample_rate(),
+                                    )
+                                    .unwrap_or_default();
+                                    s.channel_count =
+                                        crate::config::ChannelCount::from_number(format.channels())
+                                            .unwrap_or_default();
+                                    s.audio_format = crate::config::AudioFormat::from_cpal_format(
+                                        format.sample_format(),
+                                    )
+                                    .unwrap_or_default();
                                 });
                             }
                         }
@@ -642,6 +711,39 @@ impl Application for AppState {
                     self.config.update(|c| c.port = port);
                     self.port_input = port.to_string();
                     return self.add_log(format!("Changed port to {}", port).as_str());
+                }
+                ConfigMsg::PhoneIpTextInput(text) => {
+                    self.phone_ip_input = text;
+                }
+                ConfigMsg::PhoneIpSave => {
+                    let phone_ip = if self.phone_ip_input.trim().is_empty() {
+                        "192.168.31.6".to_string()
+                    } else {
+                        self.phone_ip_input.trim().to_string()
+                    };
+                    self.config.update(|c| c.phone_ip = phone_ip.clone());
+                    self.phone_ip_input = phone_ip.clone();
+                    return self.add_log(format!("Changed phone IP to {}", phone_ip).as_str());
+                }
+                ConfigMsg::AdbPortTextInput(text) => {
+                    self.adb_port_input = text;
+                }
+                ConfigMsg::AdbPortSave => {
+                    let adb_port = if self.adb_port_input.is_empty() {
+                        5555
+                    } else {
+                        match self.adb_port_input.parse() {
+                            Ok(p) => p,
+                            Err(_) => {
+                                self.adb_port_input = "5555".to_string();
+                                self.config.update(|c| c.adb_port = 5555);
+                                return self.add_log("Invalid ADB port number, using default 5555");
+                            }
+                        }
+                    };
+                    self.config.update(|c| c.adb_port = adb_port);
+                    self.adb_port_input = adb_port.to_string();
+                    return self.add_log(format!("Changed ADB port to {}", adb_port).as_str());
                 }
 
                 ConfigMsg::SampleRate(sample_rate) => {

@@ -1,13 +1,15 @@
 connection_mode = "Tcp"
 ip = "192.168.31.88"
 port = 54345
+phone_ip = "192.168.31.17"
+adb_port = 5555
 audio_format = "f32"
 channel_count = "Stereo"
 sample_rate = "48000"
 device_id = "BlackHole2ch_UID"
 start_at_login = false
-start_minimized = false
-auto_connect = false
+start_minimized = true
+auto_connect = true
 denoise = false
 denoise_kind = "Rnnoise"
 speex_noise_suppress = -30

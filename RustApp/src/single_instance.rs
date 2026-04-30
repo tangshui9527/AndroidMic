@@ -40,11 +40,32 @@ fn get_name() -> anyhow::Result<Name<'static>> {
 }
 
 pub fn stream() -> anyhow::Result<impl Stream<Item = IpcEvent>> {
-    let name = get_name()?;
-    let opts = ListenerOptions::new().name(name);
-    let listener = opts.create_tokio()?;
-
     let stream = stream! {
+        if cfg!(debug_assertions) {
+            if false {
+                yield IpcEvent::Show;
+            }
+
+            loop {
+                tokio::time::sleep(std::time::Duration::from_secs(3600)).await;
+            }
+        }
+
+        let name = match get_name() {
+            Ok(name) => name,
+            Err(e) => {
+                error!("can't resolve ipc name: {e}");
+                return;
+            }
+        };
+        let opts = ListenerOptions::new().name(name);
+        let listener = match opts.create_tokio() {
+            Ok(listener) => listener,
+            Err(e) => {
+                error!("can't create ipc stream {e}");
+                return;
+            }
+        };
 
         loop {
             match listener.accept().await {
@@ -79,6 +100,11 @@ pub fn stream() -> anyhow::Result<impl Stream<Item = IpcEvent>> {
 }
 
 pub fn send_event(event: IpcEvent) -> anyhow::Result<()> {
+    if cfg!(debug_assertions) {
+        let _ = event;
+        return Ok(());
+    }
+
     let name = get_name()?;
 
     let mut stream = InterprocessStream::connect(name)?;

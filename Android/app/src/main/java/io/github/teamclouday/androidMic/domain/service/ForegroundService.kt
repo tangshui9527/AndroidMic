@@ -23,6 +23,7 @@ import io.github.teamclouday.androidMic.AppModule
 import io.github.teamclouday.androidMic.AndroidMicApp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -41,6 +42,12 @@ const val WAIT_PERIOD = 500L
 const val BIND_SERVICE_ACTION = "BIND_SERVICE_ACTION"
 const val STOP_STREAM_ACTION = "STOP_STREAM_ACTION"
 const val AUTO_CONNECT_ACTION = "io.github.teamclouday.androidMic.AUTO_CONNECT"
+const val EXTRA_AUTO_CONNECT = "auto_connect"
+const val EXTRA_IP = "ip"
+const val EXTRA_PORT = "port"
+const val EXTRA_MODE = "mode"
+private const val AUTO_CONNECT_RETRY_DELAY_MS = 2000L
+private const val AUTO_CONNECT_MAX_ATTEMPTS = 15
 
 class ForegroundService : Service() {
     private val scope = CoroutineScope(Dispatchers.Default)
@@ -91,6 +98,7 @@ class ForegroundService : Service() {
     // This field is true if the UI is running
     private var isBind = false
     private var uiMessenger: Messenger? = null
+    private var autoConnectJob: Job? = null
 
 
     override fun onCreate() {
@@ -114,60 +122,76 @@ class ForegroundService : Service() {
             notificationManager.createNotificationChannel(channel)
         }
         messageui = MessageUi(this)
-        
-        scope.launch {
-            delay(5000L)
-            autoConnect()
-        }
     }
-    
-    private suspend fun autoConnect() {
-        Log.d(TAG, "Starting autoConnect...")
-        
+
+    private suspend fun buildAutoConnectCommand(intent: Intent?): CommandData? {
         val prefs = AndroidMicApp.appModule.appPreferences
-        var retryCount = 0
-        while (true) {
+        prefs.preload()
+
+        val modeOverride = intent?.getStringExtra(EXTRA_MODE)?.let { modeName ->
+            Mode.entries.firstOrNull { it.name.equals(modeName, ignoreCase = true) }
+        }
+        val ipOverride = intent?.getStringExtra(EXTRA_IP)
+        val portOverride = intent?.getStringExtra(EXTRA_PORT)?.toIntOrNull()
+
+        val mode = modeOverride ?: prefs.mode.get()
+        val ip = ipOverride ?: prefs.ip.get()
+        val port = portOverride ?: prefs.port.get().toIntOrNull()
+
+        if (mode == null || port == null || (mode != Mode.ADB && ip.isNullOrEmpty())) {
+            Log.d(TAG, "Invalid auto-connect config: mode=$mode, ip=$ip, port=$port")
+            return null
+        }
+
+        return CommandData(
+            command = Command.StartStream,
+            mode = mode,
+            ip = if (mode == Mode.ADB) null else ip,
+            port = port,
+            sampleRate = prefs.sampleRate.get(),
+            channelCount = prefs.channelCount.get(),
+            audioFormat = prefs.audioFormat.get(),
+        )
+    }
+
+    private suspend fun autoConnect(intent: Intent?) {
+        Log.d(TAG, "Starting autoConnect...")
+
+        val prefs = AndroidMicApp.appModule.appPreferences
+        val requestedCommand = buildAutoConnectCommand(intent)
+        if (requestedCommand == null) {
+            Log.d(TAG, "Abort autoConnect: missing config")
+            return
+        }
+
+        repeat(AUTO_CONNECT_MAX_ATTEMPTS) { attempt ->
             try {
                 prefs.preload()
-                
-                val mode = prefs.mode.get()
-                val ip = prefs.ip.get()
-                val portStr = prefs.port.get()
-                
-                Log.d(TAG, "Config: mode=$mode, ip=$ip, port=$portStr")
-                
-                val port = try { portStr.toInt() } catch (e: Exception) { null }
-                
-                if (mode == null || ip.isNullOrEmpty() || port == null || portStr.isNullOrEmpty()) {
-                    Log.d(TAG, "Invalid config (mode=$mode, ip=$ip, portStr=$portStr), retry in 10s...")
-                    delay(10000)
-                    continue
-                }
-                
-                val commandData = CommandData(
-                    command = Command.StartStream,
-                    mode = mode,
-                    ip = ip,
-                    port = port,
+
+                val commandData = requestedCommand.copy(
                     sampleRate = prefs.sampleRate.get(),
                     channelCount = prefs.channelCount.get(),
                     audioFormat = prefs.audioFormat.get(),
                 )
-                
-                Log.d(TAG, "Auto connecting to ${commandData.ip}:${commandData.port}, mode=${commandData.mode}, attempt ${++retryCount}")
-                
+
+                Log.d(
+                    TAG,
+                    "Auto connecting to ${commandData.ip ?: "127.0.0.1"}:${commandData.port}, mode=${commandData.mode}, attempt ${attempt + 1}/$AUTO_CONNECT_MAX_ATTEMPTS"
+                )
+
                 val connectSuccess = tryConnect(commandData)
                 if (connectSuccess) {
                     Log.d(TAG, "Auto connect SUCCESS!")
-                    return // 连接成功，退出循环
+                    return
                 } else {
-                    Log.d(TAG, "Auto connect failed, retry in 10s...")
+                    Log.d(TAG, "Auto connect failed, retry soon...")
                 }
             } catch (e: Exception) {
                 Log.d(TAG, "Auto connect error: ${e.message}")
             }
-            delay(10000)
+            delay(AUTO_CONNECT_RETRY_DELAY_MS)
         }
+        Log.d(TAG, "Auto connect exhausted all retries")
     }
     
     private suspend fun tryConnect(cmd: CommandData): Boolean {
@@ -231,8 +255,9 @@ class ForegroundService : Service() {
                 } catch (e: Exception) {
                     Log.e(TAG, "Failed to start foreground: ${e.message}")
                 }
-                scope.launch {
-                    autoConnect()
+                autoConnectJob?.cancel()
+                autoConnectJob = scope.launch {
+                    autoConnect(intent)
                 }
             }
 
@@ -330,6 +355,7 @@ class ForegroundService : Service() {
         if (managerStream?.connect() != true || managerStream?.isConnected() != true
         ) {
             Log.d(TAG, "failed to connect to ${msg.ip}:${msg.port}")
+            shutdownStream()
 
             reply(
                 replyTo,

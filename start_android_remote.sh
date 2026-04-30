@@ -10,9 +10,9 @@ SERVICE_NAME="io.github.teamclouday.androidMic.domain.service.ForegroundService"
 AUTO_CONNECT_ACTION="io.github.teamclouday.androidMic.AUTO_CONNECT"
 
 # --- 自动检测本机 IP ---
-LOCAL_IP=$(ipconfig getifaddr en0)
+LOCAL_IP=$(ipconfig getifaddr en1)
 if [ -z "$LOCAL_IP" ]; then
-    LOCAL_IP=$(ipconfig getifaddr en1) # 尝试 Wi-Fi
+    LOCAL_IP=$(ipconfig getifaddr en0)
 fi
 PORT="54345"
 
@@ -38,12 +38,17 @@ sleep 5
 echo "🚀 远程开启手机 App 并同步配置..."
 adb shell am start -n $PACKAGE_NAME/$MAIN_ACTIVITY \
     --ez auto_connect true \
+    --es mode "WIFI" \
     --es ip "$LOCAL_IP" \
     --es port "$PORT"
 
 # 4. 辅助：启动前台服务 (防止 Activity 启动失败)
 echo "🛠️ 启动后台同步服务..."
-adb shell am start-foreground-service -n $PACKAGE_NAME/$SERVICE_NAME -a $AUTO_CONNECT_ACTION
+adb shell am start-foreground-service -n $PACKAGE_NAME/$SERVICE_NAME -a $AUTO_CONNECT_ACTION \
+    --ez auto_connect true \
+    --es mode "WIFI" \
+    --es ip "$LOCAL_IP" \
+    --es port "$PORT"
 
 echo "----------------------------------------"
 echo "✅ 全自动化流程已触发！"

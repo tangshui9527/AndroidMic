@@ -13,6 +13,8 @@ pub struct Config {
     pub connection_mode: ConnectionMode,
     pub ip: Option<IpAddr>,
     pub port: u16,
+    pub phone_ip: String,
+    pub adb_port: u16,
     pub audio_format: AudioFormat,
     pub channel_count: ChannelCount,
     pub sample_rate: SampleRate,
@@ -102,6 +104,8 @@ impl Default for Config {
             connection_mode: Default::default(),
             ip: None,
             port: DEFAULT_PC_PORT,
+            phone_ip: "192.168.31.6".to_string(),
+            adb_port: 5555,
             audio_format: Default::default(),
             channel_count: Default::default(),
             sample_rate: Default::default(),
@@ -139,6 +143,16 @@ impl Config {
 
     pub fn ip_or_default(&self) -> Option<IpAddr> {
         self.ip.or(local_ip().ok())
+    }
+
+    pub fn phone_ip_or_default(&self) -> &str {
+        let phone_ip = self.phone_ip.trim();
+
+        if phone_ip.is_empty() {
+            "192.168.31.6"
+        } else {
+            phone_ip
+        }
     }
 }
 

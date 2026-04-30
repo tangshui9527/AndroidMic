@@ -2,6 +2,9 @@ audio_device = 音频设备
 settings = 设置
 network_adapter = 网络适配器
 port = 端口
+pc_port = 电脑监听端口
+phone_ip = 手机 IP
+adb_port = 手机 ADB 端口
 save = 保存
 connection = 连接模式
 connection_tcp = Wi-Fi / 局域网 (TCP)
@@ -31,6 +34,8 @@ channel_count = 通道数量
 audio_format = 音频格式
 use_recommended_audio_format = 使用推荐的音频格式
 
+title_connection = 连接
+
 denoise = 降噪
 denoise_enabled = 启用
 denoise_type = 类型
@@ -49,6 +54,7 @@ reset_denoise_settings = 重置降噪设置
 title_app = 应用程序
 
 start_at_login = 开机启动
+start_minimized = 最小化启动
 auto_connect = 自动连接
 theme = 主题
 amplify = 放大

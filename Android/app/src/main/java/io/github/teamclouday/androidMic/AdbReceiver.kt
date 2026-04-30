@@ -4,6 +4,8 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.util.Log
+import io.github.teamclouday.androidMic.domain.service.AUTO_CONNECT_ACTION
+import io.github.teamclouday.androidMic.domain.service.ForegroundService
 
 class AdbReceiver : BroadcastReceiver() {
     companion object {
@@ -17,8 +19,9 @@ class AdbReceiver : BroadcastReceiver() {
         if (intent.action == ACTION_CONNECT) {
             Log.d(TAG, "Triggering auto-connect...")
 
-            val serviceIntent = Intent(context, io.github.teamclouday.androidMic.domain.service.ForegroundService::class.java).apply {
-                action = "io.github.teamclouday.androidMic.AUTO_CONNECT"
+            val serviceIntent = Intent(context, ForegroundService::class.java).apply {
+                action = AUTO_CONNECT_ACTION
+                replaceExtras(intent)
             }
 
             try {

@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- https://docs.flathub.org/docs/for-app-authors/metainfo-guidelines -->
+
+<component type="desktop-application">
+  <id>io.github.teamclouday.AndroidMic</id>
+
+  <name>AndroidMic</name>
+  <summary>Use your Android phone as a microphone for your PC</summary>
+  <summary xml:lang="fr">Utilisez votre téléphone Android comme microphone pour votre PC</summary>
+
+  <metadata_license>MIT</metadata_license>
+  <project_license>GPL-3.0-only</project_license>
+
+  <developer id="tld.vendor">
+    <name>teamclouday</name>
+  </developer>
+
+  <icon type="remote" height="256" width="256">
+    https://github.com/teamclouday/AndroidMic/main/Assets/app_icon.svg</icon>
+
+  <url type="homepage">https://github.com/teamclouday/AndroidMic</url>
+  <url type="bugtracker">https://github.com/teamclouday/AndroidMic/issues</url>
+  <url type="vcs-browser">https://github.com/teamclouday/AndroidMic</url>
+
+  <content_rating type="oars-1.1" />
+
+  <description>
+    <p>AndroidMic lets you use your Android device as a microphone for your PC. This tool
+      supports multiple connection methods, including TCP, UDP, USB serial, and USB ADB. Stream
+      audio directly from your phone's microphone to your PC with minimal setup and flexibility in
+      choosing audio formats and output devices.</p>
+    <p>Features</p>
+    <ul>
+      <li>Connect via TCP/UDP over the same network or USB cable</li>
+      <li>Noise Cancellation</li>
+      <li>Audio wave to visualize the sound</li>
+      <li>Supports advanced audio options, like sample rate, channels, and format</li>
+    </ul>
+  </description>
+
+  <launchable type="desktop-id">io.github.teamclouday.AndroidMic.desktop</launchable>
+  <screenshots>
+    <screenshot type="default">
+      <caption>AndroidMic screenshot</caption>
+      <image>
+        https://github.com/teamclouday/AndroidMic/main/Assets/pc_screenshot_main_dark.png</image>
+    </screenshot>
+  </screenshots>
+
+  <provides>
+    <id>com.system76.CosmicApplication</id>
+    <binary>android-mic</binary>
+  </provides>
+
+  <releases>
+    <release version="2.2.6" date="2025-03-01">
+    </release>
+  </releases>
+
+</component>

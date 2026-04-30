@@ -114,7 +114,10 @@ impl StreamerTrait for TcpStreamer {
                     .await
                     .map_err(|e| ConnectError::HandShakeFailed("writing", e))?;
 
-                info!("Connection accepted and handshake completed, remote address: {}", addr);
+                info!(
+                    "Connection accepted and handshake completed, remote address: {}",
+                    addr
+                );
 
                 self.state = TcpStreamerState::Streaming {
                     framed: Framed::new(stream, LengthDelimitedCodec::new()),

@@ -55,6 +55,10 @@ pub enum ConfigMsg {
     ToggleAboutWindow,
     PortTextInput(String),
     PortSave,
+    PhoneIpTextInput(String),
+    PhoneIpSave,
+    AdbPortTextInput(String),
+    AdbPortSave,
     PostAudioEffect(AudioEffect),
 }
 

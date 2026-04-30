@@ -12,12 +12,17 @@ import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.lifecycle.lifecycleScope
 import io.github.teamclouday.androidMic.AndroidMicApp
+import io.github.teamclouday.androidMic.Mode
+import io.github.teamclouday.androidMic.domain.service.AUTO_CONNECT_ACTION
+import io.github.teamclouday.androidMic.domain.service.EXTRA_AUTO_CONNECT
+import io.github.teamclouday.androidMic.domain.service.EXTRA_IP
+import io.github.teamclouday.androidMic.domain.service.EXTRA_MODE
+import io.github.teamclouday.androidMic.domain.service.EXTRA_PORT
 import io.github.teamclouday.androidMic.domain.service.ForegroundService
 import io.github.teamclouday.androidMic.ui.home.HomeScreen
 import io.github.teamclouday.androidMic.ui.home.openAppSettings
 import io.github.teamclouday.androidMic.ui.theme.AndroidMicTheme
 import io.github.teamclouday.androidMic.ui.utils.rememberWindowInfo
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 private const val TAG = "MainActivity"
@@ -35,12 +40,6 @@ class MainActivity : ComponentActivity() {
                 Log.d(TAG, "Service BOUND! Attempting connect...")
                 vm.handlerServiceResponse()
                 vm.refreshAppVariables()
-                
-                lifecycleScope.launch {
-                    delay(800)
-                    Log.d(TAG, "Calling autoConnect...")
-                    vm.autoConnectIfNeeded()
-                }
             } catch (e: Exception) {
                 Log.d(TAG, "Connect error: ${e.message}")
             }
@@ -76,16 +75,7 @@ class MainActivity : ComponentActivity() {
                 HomeScreen(vm, rememberWindowInfo(), openAppSettings = ::openAppSettings)
             }
         }
-        
-        // 备用连接 - 如果服务绑定失败了
-        lifecycleScope.launch {
-            delay(3000)
-            if (!mBound) {
-                Log.d(TAG, "Fallback: retry connection...")
-                vm.autoConnectIfNeeded()
-            }
-        }
-        
+
         handleIntent(intent)
     }
 
@@ -100,24 +90,41 @@ class MainActivity : ComponentActivity() {
         val autoConnect = intent.getBooleanExtra("auto_connect", false)
         val ipOverride = intent.getStringExtra("ip")
         val portOverride = intent.getStringExtra("port")
+        val modeOverride = intent.getStringExtra("mode")
 
-        if (ipOverride != null || portOverride != null) {
-            Log.d(TAG, "Override detected: IP=$ipOverride, Port=$portOverride")
+        if (ipOverride != null || portOverride != null || modeOverride != null) {
+            Log.d(TAG, "Override detected: IP=$ipOverride, Port=$portOverride, Mode=$modeOverride")
             lifecycleScope.launch {
                 if (ipOverride != null) vm.prefs.ip.update(ipOverride)
                 if (portOverride != null) vm.prefs.port.update(portOverride)
-                delay(500)
+                if (modeOverride != null) {
+                    Mode.entries.firstOrNull { it.name.equals(modeOverride, ignoreCase = true) }
+                        ?.let { vm.prefs.mode.update(it) }
+                }
                 if (autoConnect) {
-                    Log.d(TAG, "Triggering connection after override...")
-                    vm.onConnectButton()
+                    triggerServiceAutoConnect(ipOverride, portOverride, modeOverride)
                 }
             }
         } else if (autoConnect) {
-            Log.d(TAG, "Intent auto_connect detected, triggering connection...")
-            lifecycleScope.launch {
-                delay(1000) // 等待 UI 初始化
-                vm.onConnectButton()
-            }
+            Log.d(TAG, "Intent auto_connect detected, forwarding to service...")
+            triggerServiceAutoConnect(null, null, null)
+        }
+    }
+
+    private fun triggerServiceAutoConnect(ip: String?, port: String?, mode: String?) {
+        val serviceIntent = Intent(this, ForegroundService::class.java).apply {
+            action = AUTO_CONNECT_ACTION
+            putExtra(EXTRA_AUTO_CONNECT, true)
+            ip?.let { putExtra(EXTRA_IP, it) }
+            port?.let { putExtra(EXTRA_PORT, it) }
+            mode?.let { putExtra(EXTRA_MODE, it) }
+        }
+
+        try {
+            startForegroundService(serviceIntent)
+            Log.d(TAG, "AUTO_CONNECT_ACTION forwarded to service")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to forward AUTO_CONNECT_ACTION: ${e.message}")
         }
     }
 
