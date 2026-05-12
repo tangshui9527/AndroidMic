@@ -29,7 +29,7 @@ echo "💻 启动桌面端 App..."
 # 使用 open 确保在 macOS 上打开 GUI 窗口，并传递参数
 # 如果 open 不支持传参，我们直接后台运行二进制
 pkill -9 android-mic || true
-/Users/tangshui/Desktop/AndroidMic/RustApp/target/debug/android-mic -i $LOCAL_IP -m TCP --listen &
+/Users/tangshui/Documents/AndroidMic/RustApp/target/debug/android-mic -i $LOCAL_IP -m TCP --listen &
 
 echo "⏳ 等待桌面端初始化 (5s)..."
 sleep 5

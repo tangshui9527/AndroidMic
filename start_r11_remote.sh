@@ -1,56 +1,130 @@
 #!/bin/bash
-# AndroidMic 远程自动化启动脚本
+set -euo pipefail
 
-# --- 配置 ---
+# AndroidMic 一键连接脚本
+# 目标：运行一次脚本后，自动完成 ADB 连接、桌面端监听、安卓端拉起与自动连接。
+
 PHONE_IP="192.168.31.11"
 ADB_PORT="5555"
+PC_PORT="54345"
 PACKAGE_NAME="io.github.teamclouday.AndroidMic.debug"
 MAIN_ACTIVITY="io.github.teamclouday.androidMic.ui.MainActivity"
 SERVICE_NAME="io.github.teamclouday.androidMic.domain.service.ForegroundService"
 AUTO_CONNECT_ACTION="io.github.teamclouday.androidMic.AUTO_CONNECT"
+MODE="WIFI"
 
-# --- 自动检测本机 IP ---
-LOCAL_IP=$(ipconfig getifaddr en1)
-if [ -z "$LOCAL_IP" ]; then
-    LOCAL_IP=$(ipconfig getifaddr en0)
-fi
-PORT="54345"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+APP_BUNDLE="$SCRIPT_DIR/AndroidMic.app"
+APP_BIN="$APP_BUNDLE/Contents/MacOS/android-mic"
+DEBUG_BIN="$SCRIPT_DIR/RustApp/target/debug/android-mic"
+ADB_SERIAL="${PHONE_IP}:${ADB_PORT}"
+DESKTOP_LOG="/tmp/androidmic_r11_remote.log"
+
+find_local_ip() {
+    local ip=""
+    ip="$(ipconfig getifaddr en1 2>/dev/null || true)"
+    if [ -z "$ip" ]; then
+        ip="$(ipconfig getifaddr en0 2>/dev/null || true)"
+    fi
+
+    if [ -z "$ip" ]; then
+        echo "ERROR: Could not detect local IP from en1 or en0." >&2
+        exit 1
+    fi
+
+    printf '%s\n' "$ip"
+}
+
+require_command() {
+    if ! command -v "$1" >/dev/null 2>&1; then
+        echo "ERROR: Missing required command: $1" >&2
+        exit 1
+    fi
+}
+
+wait_for_listen() {
+    local port="$1"
+    local attempts=20
+
+    for ((i = 1; i <= attempts; i++)); do
+        if lsof -nP -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then
+            return 0
+        fi
+        sleep 1
+    done
+
+    echo "ERROR: Desktop app did not start listening on TCP $port in time." >&2
+    echo "--- Desktop process ---" >&2
+    pgrep -af "android-mic" >&2 || true
+    echo "--- Desktop log ---" >&2
+    tail -n 80 "$DESKTOP_LOG" >&2 || true
+    exit 1
+}
+
+start_desktop_app() {
+    pkill -f "$APP_BIN" >/dev/null 2>&1 || true
+    pkill -f "$DEBUG_BIN" >/dev/null 2>&1 || true
+    rm -f "$DESKTOP_LOG"
+
+    if [ -x "$APP_BIN" ]; then
+        echo "Launching AndroidMic app binary..."
+        "$APP_BIN" -i "$LOCAL_IP" -m TCP --listen >"$DESKTOP_LOG" 2>&1 &
+    elif [ -x "$DEBUG_BIN" ]; then
+        echo "Launching debug binary..."
+        "$DEBUG_BIN" -i "$LOCAL_IP" -m TCP --listen >"$DESKTOP_LOG" 2>&1 &
+    else
+        echo "ERROR: Could not find AndroidMic executable." >&2
+        exit 1
+    fi
+}
+
+adb_shell() {
+    adb -s "$ADB_SERIAL" shell "$@"
+}
+
+require_command adb
+require_command ipconfig
+require_command lsof
+
+LOCAL_IP="$(find_local_ip)"
 
 echo "----------------------------------------"
-echo "💻 本机 IP: $LOCAL_IP"
-echo "📱 手机 IP: $PHONE_IP"
+echo "Local IP : $LOCAL_IP"
+echo "Phone IP : $PHONE_IP"
+echo "ADB Port : $ADB_PORT"
+echo "PC Port  : $PC_PORT"
 echo "----------------------------------------"
 
-# 1. 尝试连接 ADB
-adb connect $PHONE_IP:$ADB_PORT
+echo "1/5 Connecting ADB..."
+adb connect "$ADB_SERIAL" >/dev/null
+adb -s "$ADB_SERIAL" wait-for-device
 
-# 2. 启动桌面端 (确保 GUI 打开并进入监听状态)
-echo "💻 启动桌面端 App..."
-# 使用 open 确保在 macOS 上打开 GUI 窗口，并传递参数
-# 如果 open 不支持传参，我们直接后台运行二进制
-pkill -9 android-mic || true
-/Users/tangshui/Desktop/AndroidMic/RustApp/target/debug/android-mic -i $LOCAL_IP -m TCP --listen &
+echo "2/5 Waking phone and clearing old AndroidMic state..."
+adb_shell input keyevent KEYCODE_WAKEUP >/dev/null 2>&1 || true
+adb_shell am force-stop "$PACKAGE_NAME" >/dev/null 2>&1 || true
 
-echo "⏳ 等待桌面端初始化 (5s)..."
-sleep 5
+echo "3/5 Starting desktop app in TCP listen mode..."
+start_desktop_app
+wait_for_listen "$PC_PORT"
 
-# 3. 启动手机端 App 并强制设置 IP/Port
-echo "🚀 远程开启手机 App 并同步配置..."
-adb shell am start -n $PACKAGE_NAME/$MAIN_ACTIVITY \
+echo "4/5 Sending AUTO_CONNECT_ACTION to Android foreground service..."
+adb_shell am start-foreground-service \
+    -n "$PACKAGE_NAME/$SERVICE_NAME" \
+    -a "$AUTO_CONNECT_ACTION" \
     --ez auto_connect true \
-    --es mode "WIFI" \
+    --es mode "$MODE" \
     --es ip "$LOCAL_IP" \
-    --es port "$PORT"
+    --es port "$PC_PORT" >/dev/null
 
-# 4. 辅助：启动前台服务 (防止 Activity 启动失败)
-echo "🛠️ 启动后台同步服务..."
-adb shell am start-foreground-service -n $PACKAGE_NAME/$SERVICE_NAME -a $AUTO_CONNECT_ACTION \
+echo "5/5 Opening Android app UI..."
+adb_shell am start \
+    -n "$PACKAGE_NAME/$MAIN_ACTIVITY" \
     --ez auto_connect true \
-    --es mode "WIFI" \
+    --es mode "$MODE" \
     --es ip "$LOCAL_IP" \
-    --es port "$PORT"
+    --es port "$PC_PORT" >/dev/null
 
 echo "----------------------------------------"
-echo "✅ 全自动化流程已触发！"
-echo "请观察电脑端和手机端是否已成功连接。"
+echo "AndroidMic one-key connect triggered."
+echo "Desktop should be listening and phone should auto-connect now."
 echo "----------------------------------------"
