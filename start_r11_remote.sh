@@ -96,6 +96,7 @@ echo "PC Port  : $PC_PORT"
 echo "----------------------------------------"
 
 echo "1/5 Connecting ADB..."
+adb kill-server
 adb connect "$ADB_SERIAL" >/dev/null
 adb -s "$ADB_SERIAL" wait-for-device
 
@@ -124,7 +125,19 @@ adb_shell am start \
     --es ip "$LOCAL_IP" \
     --es port "$PC_PORT" >/dev/null
 
+# 到凌晨 01:00 自动退出 AndroidMic
+(
+    now=$(date +%s)
+    target=$(date -j -f "%H:%M:%S" "01:00:00" +%s 2>/dev/null)
+    if [ "$target" -le "$now" ]; then
+        target=$((target + 86400))
+    fi
+    sleep $((target - now))
+    pkill -f "android-mic"
+) &
+
 echo "----------------------------------------"
 echo "AndroidMic one-key connect triggered."
 echo "Desktop should be listening and phone should auto-connect now."
+echo "Auto-stop scheduled at 01:00."
 echo "----------------------------------------"
