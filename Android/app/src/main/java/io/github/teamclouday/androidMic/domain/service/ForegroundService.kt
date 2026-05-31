@@ -255,6 +255,12 @@ class ForegroundService : Service() {
                 } catch (e: Exception) {
                     Log.e(TAG, "Failed to start foreground: ${e.message}")
                 }
+                // Shutdown any in-progress stream before cancelling the old job
+                // to avoid leaking a half-connected managerStream
+                if (autoConnectJob?.isActive == true) {
+                    managerStream?.shutdown()
+                    managerStream = null
+                }
                 autoConnectJob?.cancel()
                 autoConnectJob = scope.launch {
                     autoConnect(intent)
@@ -274,13 +280,13 @@ class ForegroundService : Service() {
         isBind = false
         uiMessenger = null
 
-        if (!states.isStreamStarted) {
+        if (!states.isStreamStarted && autoConnectJob?.isActive != true) {
             // delay to handle reconfiguration
             // (Service is not destroy when the screen rotate)
             serviceShouldStop = true
             scope.launch {
                 delay(3000L)
-                if (serviceShouldStop)
+                if (serviceShouldStop && autoConnectJob?.isActive != true)
                     stopService()
             }
         }

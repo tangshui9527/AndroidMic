@@ -1,16 +1,13 @@
 #!/bin/bash
 set -euo pipefail
 
-# AndroidMic 一键连接脚本
-# 目标：运行一次脚本后，自动完成 ADB 连接、桌面端监听、安卓端拉起与自动连接。
-
-PHONE_IP="192.168.31.11"
+BASE_IP="192.168.31"
+PHONE_SUFFIX="${1:-11}"
+PHONE_IP="${BASE_IP}.${PHONE_SUFFIX}"
 ADB_PORT="5555"
 PC_PORT="54345"
 PACKAGE_NAME="io.github.teamclouday.AndroidMic.debug"
 MAIN_ACTIVITY="io.github.teamclouday.androidMic.ui.MainActivity"
-SERVICE_NAME="io.github.teamclouday.androidMic.domain.service.ForegroundService"
-AUTO_CONNECT_ACTION="io.github.teamclouday.androidMic.AUTO_CONNECT"
 MODE="WIFI"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -21,123 +18,102 @@ ADB_SERIAL="${PHONE_IP}:${ADB_PORT}"
 DESKTOP_LOG="/tmp/androidmic_r11_remote.log"
 
 find_local_ip() {
-    local ip=""
-    ip="$(ipconfig getifaddr en1 2>/dev/null || true)"
+    local ip
+    ip="$(ipconfig getifaddr en1 2>/dev/null || ipconfig getifaddr en0 2>/dev/null || true)"
     if [ -z "$ip" ]; then
-        ip="$(ipconfig getifaddr en0 2>/dev/null || true)"
-    fi
-
-    if [ -z "$ip" ]; then
-        echo "ERROR: Could not detect local IP from en1 or en0." >&2
+        echo "ERROR: Could not detect local IP." >&2
         exit 1
     fi
-
     printf '%s\n' "$ip"
 }
 
-require_command() {
-    if ! command -v "$1" >/dev/null 2>&1; then
-        echo "ERROR: Missing required command: $1" >&2
-        exit 1
-    fi
-}
-
 wait_for_listen() {
-    local port="$1"
-    local attempts=20
-
-    for ((i = 1; i <= attempts; i++)); do
+    local port="$1" i
+    for ((i = 1; i <= 20; i++)); do
         if lsof -nP -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then
             return 0
         fi
         sleep 1
     done
-
-    echo "ERROR: Desktop app did not start listening on TCP $port in time." >&2
-    echo "--- Desktop process ---" >&2
-    pgrep -af "android-mic" >&2 || true
-    echo "--- Desktop log ---" >&2
-    tail -n 80 "$DESKTOP_LOG" >&2 || true
+    echo "ERROR: Desktop app did not listen on TCP $port in time." >&2
+    tail -n 40 "$DESKTOP_LOG" >&2 || true
     exit 1
 }
 
-start_desktop_app() {
-    pkill -f "$APP_BIN" >/dev/null 2>&1 || true
-    pkill -f "$DEBUG_BIN" >/dev/null 2>&1 || true
-    rm -f "$DESKTOP_LOG"
-
-    if [ -x "$APP_BIN" ]; then
-        echo "Launching AndroidMic app binary..."
-        "$APP_BIN" -i "$LOCAL_IP" -m TCP --listen >"$DESKTOP_LOG" 2>&1 &
-    elif [ -x "$DEBUG_BIN" ]; then
-        echo "Launching debug binary..."
-        "$DEBUG_BIN" -i "$LOCAL_IP" -m TCP --listen >"$DESKTOP_LOG" 2>&1 &
-    else
-        echo "ERROR: Could not find AndroidMic executable." >&2
-        exit 1
-    fi
+wait_port_free() {
+    local port="$1" i
+    for ((i = 1; i <= 10; i++)); do
+        if ! lsof -nP -iTCP:"$port" >/dev/null 2>&1; then
+            return 0
+        fi
+        sleep 0.5
+    done
 }
 
-adb_shell() {
-    adb -s "$ADB_SERIAL" shell "$@"
-}
+adb_shell() { adb -s "$ADB_SERIAL" shell "$@"; }
 
-require_command adb
-require_command ipconfig
-require_command lsof
+command -v adb >/dev/null || { echo "ERROR: adb not found" >&2; exit 1; }
 
 LOCAL_IP="$(find_local_ip)"
 
 echo "----------------------------------------"
 echo "Local IP : $LOCAL_IP"
-echo "Phone IP : $PHONE_IP"
-echo "ADB Port : $ADB_PORT"
+echo "Phone    : $ADB_SERIAL"
 echo "PC Port  : $PC_PORT"
 echo "----------------------------------------"
 
-echo "1/5 Connecting ADB..."
-adb kill-server
-adb connect "$ADB_SERIAL" >/dev/null
+# 1. ADB connect with retry
+echo "1/4 Connecting ADB..."
+adb disconnect "$ADB_SERIAL" >/dev/null 2>&1 || true
+sleep 1
+for attempt in 1 2 3; do
+    if adb connect "$ADB_SERIAL" 2>&1 | grep -q "connected"; then
+        break
+    fi
+    [ "$attempt" -eq 3 ] && { echo "ERROR: ADB connect failed" >&2; exit 1; }
+    sleep 2
+done
 adb -s "$ADB_SERIAL" wait-for-device
 
-echo "2/5 Waking phone and clearing old AndroidMic state..."
-adb_shell input keyevent KEYCODE_WAKEUP >/dev/null 2>&1 || true
-adb_shell am force-stop "$PACKAGE_NAME" >/dev/null 2>&1 || true
+# 2. Kill old Android app state
+echo "2/4 Cleaning up Android app..."
+adb_shell input keyevent KEYCODE_WAKEUP 2>/dev/null || true
+adb_shell am force-stop "$PACKAGE_NAME" 2>/dev/null || true
+sleep 1
 
-echo "3/5 Starting desktop app in TCP listen mode..."
-start_desktop_app
+# 3. Start desktop app (ensure port is free first)
+echo "3/4 Starting desktop app..."
+pkill -f "android-mic" 2>/dev/null || true
+wait_port_free "$PC_PORT"
+rm -f "$DESKTOP_LOG"
+
+if [ -x "$APP_BIN" ]; then
+    "$APP_BIN" -i "$LOCAL_IP" -m TCP --listen >"$DESKTOP_LOG" 2>&1 &
+elif [ -x "$DEBUG_BIN" ]; then
+    "$DEBUG_BIN" -i "$LOCAL_IP" -m TCP --listen >"$DESKTOP_LOG" 2>&1 &
+else
+    echo "ERROR: No AndroidMic executable found." >&2; exit 1
+fi
 wait_for_listen "$PC_PORT"
 
-echo "4/5 Sending AUTO_CONNECT_ACTION to Android foreground service..."
-adb_shell am start-foreground-service \
-    -n "$PACKAGE_NAME/$SERVICE_NAME" \
-    -a "$AUTO_CONNECT_ACTION" \
+# 4. Launch Android app via Activity ONLY (no separate service intent)
+#    Activity's handleIntent will forward auto_connect to Service exactly once
+echo "4/4 Launching Android app with auto-connect..."
+adb_shell am start -n "$PACKAGE_NAME/$MAIN_ACTIVITY" \
     --ez auto_connect true \
     --es mode "$MODE" \
     --es ip "$LOCAL_IP" \
     --es port "$PC_PORT" >/dev/null
 
-echo "5/5 Opening Android app UI..."
-adb_shell am start \
-    -n "$PACKAGE_NAME/$MAIN_ACTIVITY" \
-    --ez auto_connect true \
-    --es mode "$MODE" \
-    --es ip "$LOCAL_IP" \
-    --es port "$PC_PORT" >/dev/null
-
-# 到凌晨 01:00 自动退出 AndroidMic
+# Auto-stop at 01:00
 (
     now=$(date +%s)
     target=$(date -j -f "%H:%M:%S" "01:00:00" +%s 2>/dev/null)
-    if [ "$target" -le "$now" ]; then
-        target=$((target + 86400))
-    fi
+    [ "$target" -le "$now" ] && target=$((target + 86400))
     sleep $((target - now))
     pkill -f "android-mic"
 ) &
 
 echo "----------------------------------------"
-echo "AndroidMic one-key connect triggered."
-echo "Desktop should be listening and phone should auto-connect now."
-echo "Auto-stop scheduled at 01:00."
+echo "Done. Auto-stop at 01:00."
 echo "----------------------------------------"

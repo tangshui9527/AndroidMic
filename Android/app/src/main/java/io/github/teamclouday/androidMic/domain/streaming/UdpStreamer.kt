@@ -73,6 +73,7 @@ class UdpStreamer(private val scope: CoroutineScope, val ip: String, var port: I
 
     override fun shutdown() {
         disconnect()
+        try { socket.close() } catch (_: Exception) { }
     }
 
     override fun start(audioStream: Flow<AudioPacket>, tx: Messenger) {

@@ -117,7 +117,9 @@ class MicAudioManager(
                     if (readCount > 0) {
                         bufferFloatConvert.clear()
                         bufferFloatConvert.asFloatBuffer().put(bufferFloat, 0, readCount)
-                        packetBuffer = bufferFloatConvert.array()
+                        val byteCount = readCount * 4
+                        packetBuffer = ByteArray(byteCount)
+                        bufferFloatConvert.get(packetBuffer, 0, byteCount)
                     } else {
                         packetBuffer = ByteArray(0)
                     }
