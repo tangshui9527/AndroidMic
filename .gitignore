@@ -4,3 +4,8 @@ release/*
 .trae
 .DS_Store
 .env
+RustApp/target/
+log/*.log
+log/app.lock
+*.bak
+.idea/
