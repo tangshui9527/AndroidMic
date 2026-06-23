@@ -11,6 +11,19 @@
 
 ---
 
+> **This is a fork** of [teamclouday/AndroidMic](https://github.com/teamclouday/AndroidMic) with personal modifications.
+
+### My Changes
+
+- **ADB multi-device support**: Connect to any phone on the network by IP suffix (e.g., `./start_r11_remote.sh 17` for 192.168.31.17)
+- **Remote start script** (`start_r11_remote.sh`): One-click launch — starts the Android app via ADB, waits for it to listen, then connects the desktop client
+- **Persistent config file** (`config/AndroidMic.toml`): Pre-configured connection, audio format, device, and UI settings
+- **Chinese localization** (`zh-CN`): Added Simplified Chinese translations
+- **macOS packaging** (`package_macos.sh`): Build script for creating `.app` bundle
+- **Build artifact cleanup**: `.gitignore` updated to exclude `RustApp/target/`, logs, and IDE files
+
+---
+
 <p  style="text-align: center;">
   <img src="./Assets/pc_screenshot_main_dark.png" width="65%"  alt="main window pc"/>
   <img src="./Assets/android_screenshot_main_dark.png" width="25%"  alt="main window android"/>
