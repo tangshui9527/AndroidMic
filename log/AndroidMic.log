@@ -1,88 +1,30 @@
-[2026-05-22T18:24:19 WARN android_mic::audio::process] dropped 6400 audio bytes
-[2026-05-22T18:24:19 WARN android_mic::audio::process] dropped 4824 audio bytes
-[2026-05-22T18:24:19 WARN android_mic::audio::process] dropped 13736 audio bytes
-[2026-05-22T18:24:19 WARN android_mic::audio::process] dropped 13736 audio bytes
-[2026-05-22T18:24:19 WARN android_mic::audio::process] dropped 13736 audio bytes
-[2026-05-22T18:24:19 WARN android_mic::audio::process] dropped 13736 audio bytes
-[2026-05-22T18:24:19 WARN android_mic::audio::process] dropped 13736 audio bytes
-[2026-05-22T18:24:19 WARN android_mic::audio::process] dropped 4824 audio bytes
-[2026-05-22T18:24:19 WARN android_mic::audio::process] dropped 13736 audio bytes
-[2026-05-22T18:24:19 WARN android_mic::audio::process] dropped 4816 audio bytes
-[2026-05-22T18:24:19 WARN android_mic::audio::process] dropped 4824 audio bytes
-[2026-05-22T18:24:19 WARN android_mic::audio::process] dropped 13736 audio bytes
-[2026-05-22T18:24:19 WARN android_mic::audio::process] dropped 1448 audio bytes
-[2026-05-22T18:24:19 WARN android_mic::audio::process] dropped 7720 audio bytes
-[2026-05-22T18:24:19 WARN android_mic::audio::process] dropped 976 audio bytes
-[2026-05-22T18:24:20 WARN android_mic::audio::process] dropped 976 audio bytes
-[2026-05-22T18:24:20 WARN android_mic::audio::process] dropped 1952 audio bytes
-[2026-05-22T18:24:24 WARN android_mic::audio::process] dropped 776 audio bytes
-[2026-05-22T18:24:42 WARN android_mic::audio::process] dropped 784 audio bytes
-[2026-05-22T18:24:58 WARN android_mic::audio::process] dropped 136 audio bytes
-[2026-05-22T18:26:05 WARN android_mic::audio::process] dropped 192 audio bytes
-[2026-05-22T18:26:08 WARN android_mic::audio::process] dropped 640 audio bytes
-[2026-05-22T18:29:06 WARN android_mic::audio::process] dropped 536 audio bytes
-[2026-05-22T18:32:22 WARN android_mic::audio::process] dropped 2280 audio bytes
-[2026-05-22T18:59:01 WARN android_mic::audio::process] dropped 840 audio bytes
-[2026-05-22T19:03:22 WARN android_mic::audio::process] dropped 392 audio bytes
-[2026-05-22T19:04:14 WARN android_mic::audio::process] dropped 528 audio bytes
-[2026-05-22T19:15:40 WARN android_mic::audio::process] dropped 1168 audio bytes
-[2026-05-22T19:38:13 WARN android_mic::audio::process] dropped 584 audio bytes
-[2026-05-22T19:48:24 WARN android_mic::audio::process] dropped 1224 audio bytes
-[2026-05-22T19:53:45 WARN android_mic::audio::process] dropped 200 audio bytes
-[2026-05-22T19:54:45 WARN android_mic::audio::process] dropped 920 audio bytes
-[2026-05-22T19:57:29 WARN android_mic::audio::process] dropped 14600 audio bytes
-[2026-05-22T19:57:29 WARN android_mic::audio::process] dropped 13736 audio bytes
-[2026-05-22T19:57:29 WARN android_mic::audio::process] dropped 9640 audio bytes
-[2026-05-22T19:57:30 WARN android_mic::audio::process] dropped 5544 audio bytes
-[2026-05-22T19:57:30 WARN android_mic::audio::process] dropped 1976 audio bytes
-[2026-05-22T19:57:30 WARN android_mic::audio::process] dropped 5552 audio bytes
-[2026-05-22T19:57:30 WARN android_mic::audio::process] dropped 968 audio bytes
-[2026-05-22T19:57:39 WARN android_mic::audio::process] dropped 392 audio bytes
-[2026-05-22T19:58:04 WARN android_mic::audio::process] dropped 528 audio bytes
-[2026-05-22T19:58:06 WARN android_mic::audio::process] dropped 648 audio bytes
-[2026-05-22T20:01:04 WARN android_mic::audio::process] dropped 528 audio bytes
-[2026-05-22T20:05:10 WARN android_mic::audio::process] dropped 248 audio bytes
-[2026-05-22T20:09:32 WARN android_mic::audio::process] dropped 392 audio bytes
-[2026-05-22T20:10:24 WARN android_mic::audio::process] dropped 528 audio bytes
-[2026-05-22T20:10:44 WARN android_mic::audio::process] dropped 248 audio bytes
-[2026-05-22T20:23:56 WARN android_mic::audio::process] dropped 920 audio bytes
-[2026-05-22T20:25:55 WARN android_mic::audio::process] dropped 256 audio bytes
-[2026-05-22T20:35:21 WARN android_mic::audio::process] dropped 920 audio bytes
-[2026-05-22T20:42:34 WARN android_mic::audio::process] dropped 1168 audio bytes
-[2026-05-22T21:06:22 WARN android_mic::audio::process] dropped 56 audio bytes
-[2026-05-22T21:07:57 WARN android_mic::audio::process] dropped 192 audio bytes
-[2026-05-22T21:09:20 WARN android_mic::audio::process] dropped 336 audio bytes
-[2026-05-22T21:11:19 WARN android_mic::audio::process] dropped 248 audio bytes
-[2026-05-22T21:12:20 WARN android_mic::audio::process] dropped 920 audio bytes
-[2026-05-22T21:28:33 WARN android_mic::audio::process] dropped 448 audio bytes
-[2026-05-22T21:30:42 WARN android_mic::audio::process] dropped 6408 audio bytes
-[2026-05-22T21:30:42 WARN android_mic::audio::process] dropped 13736 audio bytes
-[2026-05-22T21:30:42 WARN android_mic::audio::process] dropped 13744 audio bytes
-[2026-05-22T21:30:42 WARN android_mic::audio::process] dropped 13744 audio bytes
-[2026-05-22T21:30:42 WARN android_mic::audio::process] dropped 13736 audio bytes
-[2026-05-22T21:30:42 WARN android_mic::audio::process] dropped 13736 audio bytes
-[2026-05-22T21:30:42 WARN android_mic::audio::process] dropped 13736 audio bytes
-[2026-05-22T21:30:42 WARN android_mic::audio::process] dropped 4816 audio bytes
-[2026-05-22T21:30:42 WARN android_mic::audio::process] dropped 13744 audio bytes
-[2026-05-22T21:30:42 WARN android_mic::audio::process] dropped 4824 audio bytes
-[2026-05-22T21:30:42 WARN android_mic::audio::process] dropped 13736 audio bytes
-[2026-05-22T21:30:43 WARN android_mic::audio::process] dropped 976 audio bytes
-[2026-05-22T21:30:43 WARN android_mic::audio::process] dropped 5576 audio bytes
-[2026-05-22T21:30:45 WARN android_mic::audio::process] dropped 640 audio bytes
-[2026-05-22T21:30:54 WARN android_mic::audio::process] dropped 1360 audio bytes
-[2026-05-22T21:31:38 WARN android_mic::audio::process] dropped 1120 audio bytes
-[2026-05-22T21:31:46 WARN android_mic::audio::process] dropped 384 audio bytes
-[2026-05-22T21:32:11 WARN android_mic::audio::process] dropped 536 audio bytes
-[2026-05-22T21:35:11 WARN android_mic::audio::process] dropped 1168 audio bytes
-[2026-05-22T21:48:10 WARN android_mic::audio::process] dropped 248 audio bytes
-[2026-05-22T21:57:45 WARN android_mic::audio::process] dropped 336 audio bytes
-[2026-05-22T22:04:42 WARN android_mic::audio::process] dropped 1032 audio bytes
-[2026-05-22T22:09:10 WARN android_mic::audio::process] dropped 136 audio bytes
-[2026-05-22T22:18:36 WARN android_mic::audio::process] dropped 448 audio bytes
-[2026-05-22T22:21:50 WARN android_mic::audio::process] dropped 192 audio bytes
-[2026-05-22T22:25:31 WARN android_mic::audio::process] dropped 200 audio bytes
-[2026-05-22T22:25:49 WARN android_mic::audio::process] dropped 776 audio bytes
-[2026-05-22T22:36:07 WARN android_mic::audio::process] dropped 976 audio bytes
-[2026-05-22T22:43:48 WARN android_mic::audio::process] dropped 1168 audio bytes
-[2026-05-22T22:46:34 WARN android_mic::audio::process] dropped 200 audio bytes
-[2026-05-22T22:52:46 WARN android_mic::audio::process] dropped 720 audio bytes
+[2026-06-05T13:50:43 ERROR android_mic::streamer::streamer_runner] command failed: Some(255):Error: Not found; no service started.
+
+[2026-06-05T13:50:48 ERROR android_mic::streamer::streamer_runner] command failed: Some(255):Error: Not found; no service started.
+
+[2026-06-05T13:50:53 ERROR android_mic::streamer::streamer_runner] command failed: Some(255):Error: Not found; no service started.
+
+[2026-06-05T13:50:54 ERROR android_mic::streamer::streamer_runner] command failed: Some(255):Error: Not found; no service started.
+
+[2026-06-05T13:50:55 ERROR android_mic::streamer::streamer_runner] command failed: Some(255):Error: Not found; no service started.
+
+[2026-06-05T13:51:24 ERROR android_mic::streamer::streamer_runner] command failed: Some(255):Error: Not found; no service started.
+
+[2026-06-05T13:51:26 ERROR android_mic::streamer::streamer_runner] command failed: Some(255):Error: Not found; no service started.
+
+[2026-06-05T13:51:28 WARN android_mic::streamer::usb_streamer] Cannot switch USB device 0x1 to accessory mode: can't claim usb device interface: could not open interface for exclusive access (error 0xe00002c5)
+[2026-06-05T13:51:28 WARN android_mic::streamer::usb_streamer] Cannot switch USB device 0x2 to accessory mode: can't claim usb device interface: could not open interface for exclusive access (error 0xe00002c5)
+[2026-06-05T13:51:28 WARN android_mic::streamer::usb_streamer] Cannot switch USB device 0x1 to accessory mode: can't claim usb device interface: could not open interface for exclusive access (error 0xe00002c5)
+[2026-06-05T13:51:28 WARN android_mic::streamer::usb_streamer] Cannot switch USB device 0x2 to accessory mode: can't claim usb device interface: could not open interface for exclusive access (error 0xe00002c5)
+[2026-06-05T13:51:28 WARN android_mic::streamer::usb_streamer] Cannot switch USB device 0x3 to accessory mode: can't claim usb device interface: could not open interface for exclusive access (error 0xe00002c5)
+[2026-06-05T13:51:28 ERROR android_mic::streamer::streamer_runner] no usb device found: No USB device found in accessory mode.
+If this is your first connection attempt, the device has been switched to accessory mode.
+Please click Connect again to establish the connection.
+[2026-06-05T13:51:31 ERROR android_mic::streamer::streamer_runner] command failed: Some(255):Error: Not found; no service started.
+
+[2026-06-05T13:51:33 ERROR android_mic::streamer::streamer_runner] command failed: Some(255):Error: Not found; no service started.
+
+[2026-06-05T13:51:36 ERROR android_mic::streamer::streamer_runner] command failed: Some(255):Error: Not found; no service started.
+
+[2026-06-05T13:53:34 ERROR android_mic::streamer::streamer_runner] command failed: Some(255):Error: Not found; no service started.
+
